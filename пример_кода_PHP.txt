@@ -1,0 +1,39 @@
+<?php
+require_once __DIR__ . '/config.php';
+
+use SmsSystem\Database\Connection;
+use SmsSystem\Services\MessageService;
+
+$connection = Connection::make(DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD);
+$service = new MessageService($connection);
+
+$recipientId = $service->createRecipient([
+    'full_name' => 'Иванов Иван Иванович',
+    'phone'     => '+79990001122',
+    'group_id'  => 2
+]);
+
+$messageId = $service->createMessage([
+    'title'      => 'Напоминание о совещании',
+    'text'       => 'Совещание в 14:00 в конференц-зале',
+    'category'   => 'служебное',
+    'created_by' => 1
+]);
+
+$result = $service->sendMessage($messageId, [$recipientId]);
+
+if ($result->success) {
+    echo 'Сообщения поставлены в очередь';
+} else {
+    echo 'Ошибка отправки: ' . $result->message;
+}
+{
+  "cells": [],
+  "metadata": {
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 2
+}

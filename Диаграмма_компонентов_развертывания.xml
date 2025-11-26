@@ -1,0 +1,164 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram id="deployment-diagram" name="Диаграмма компонентов и развертывания">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Deployment Nodes -->
+        
+        <!-- Client Node -->
+        <mxCell id="node_client" value="Клиентское устройство&#xa;(Браузер)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="280" height="200" as="geometry"/>
+        </mxCell>
+
+        <!-- Web UI Component -->
+        <mxCell id="comp_webui" value="Web UI&#xa;HTML/CSS/JavaScript" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left" vertex="1" parent="node_client">
+          <mxGeometry x="20" y="40" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- AJAX Client -->
+        <mxCell id="comp_ajax" value="AJAX Client&#xa;(Fetch API)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left" vertex="1" parent="node_client">
+          <mxGeometry x="20" y="120" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Web Server Node -->
+        <mxCell id="node_webserver" value="Веб-сервер&#xa;Apache/Nginx + PHP-FPM" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="420" y="60" width="880" height="520" as="geometry"/>
+        </mxCell>
+
+        <!-- PHP Application Components -->
+        <mxCell id="comp_auth" value="Auth Module&#xa;auth.php&#xa;- authenticateUser()&#xa;- validatePassword()&#xa;- isUserBlocked()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="20" y="40" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="comp_users" value="Users Module&#xa;admin.php/user.php&#xa;- registerUser()&#xa;- updateUser()&#xa;- blockUser()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="240" y="40" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="comp_recipients" value="Recipients Module&#xa;admin.php&#xa;- addRecipient()&#xa;- updateRecipient()&#xa;- deleteRecipient()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="460" y="40" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="comp_messages" value="Messages Module&#xa;send_sms.php&#xa;- createMessage()&#xa;- sendSMS()&#xa;- validateMessage()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="680" y="40" width="180" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="comp_logs" value="MessageLogs Module&#xa;admin.php&#xa;- logMessage()&#xa;- updateStatus()&#xa;- getStatistics()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="20" y="160" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="comp_systemlogs" value="SystemLogs Module&#xa;system.php&#xa;- logSystemAction()&#xa;- getSystemLogs()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="240" y="160" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="comp_backup" value="Backup Module&#xa;admin.php&#xa;- createBackup()&#xa;- restoreBackup()&#xa;- exportData()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="460" y="160" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="comp_config" value="Config Module&#xa;config.php&#xa;- connectToDatabase()&#xa;- testConnection()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="680" y="160" width="180" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- PHP Runtime -->
+        <mxCell id="comp_php" value="PHP Runtime&#xa;PHP 7.4+&#xa;- Session Management&#xa;- JSON Processing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="20" y="280" width="840" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- MySQLi Extension -->
+        <mxCell id="comp_mysqli" value="MySQLi Extension&#xa;- Prepared Statements&#xa;- Transactions&#xa;- Connection Pooling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="20" y="360" width="400" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Web Server Runtime -->
+        <mxCell id="comp_webserver_runtime" value="Web Server Runtime&#xa;Apache 2.4+ / Nginx 1.18+&#xa;- HTTP/HTTPS Protocol&#xa;- SSL/TLS Support" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left" vertex="1" parent="node_webserver">
+          <mxGeometry x="460" y="360" width="400" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Database Node -->
+        <mxCell id="node_database" value="Сервер базы данных&#xa;MySQL 5.7+" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1420" y="60" width="200" height="420" as="geometry"/>
+        </mxCell>
+
+        <!-- Database Component -->
+        <mxCell id="comp_database" value="MySQL Database&#xa;project_Sabanov&#xa;&#xa;Tables:&#xa;- users&#xa;- recipients&#xa;- groups&#xa;- messages&#xa;- messagelogs&#xa;- system_logs&#xa;- user_feedback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left" vertex="1" parent="node_database">
+          <mxGeometry x="20" y="40" width="160" height="360" as="geometry"/>
+        </mxCell>
+
+        <!-- Connections -->
+        
+        <!-- Client to Web Server -->
+        <mxCell id="conn_client_web" value="HTTPS&#xa;Port 443" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;html=1;strokeWidth=2;strokeColor=#666666;fillColor=#d5e8d4;labelBackgroundColor=#ffffff" edge="1" parent="1" source="node_client" target="node_webserver">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Web Server to Database -->
+        <mxCell id="conn_web_db" value="TCP/IP&#xa;Port 3306&#xa;UTF-8mb4" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;html=1;strokeWidth=2;strokeColor=#666666;fillColor=#d5e8d4;labelBackgroundColor=#ffffff" edge="1" parent="1" source="node_webserver" target="node_database">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Component Dependencies -->
+        
+        <!-- Auth depends on Config -->
+        <mxCell id="dep_auth_config" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_auth" target="comp_config">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Users depends on Auth and Config -->
+        <mxCell id="dep_users_auth" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_users" target="comp_auth">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dep_users_config" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_users" target="comp_config">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Recipients depends on Config -->
+        <mxCell id="dep_recipients_config" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_recipients" target="comp_config">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Messages depends on Config -->
+        <mxCell id="dep_messages_config" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_messages" target="comp_config">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- MessageLogs depends on Config -->
+        <mxCell id="dep_logs_config" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_logs" target="comp_config">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- SystemLogs depends on Config -->
+        <mxCell id="dep_systemlogs_config" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_systemlogs" target="comp_config">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Backup depends on Config -->
+        <mxCell id="dep_backup_config" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_backup" target="comp_config">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Config uses MySQLi -->
+        <mxCell id="dep_config_mysqli" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#b85450;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_webserver" source="comp_config" target="comp_mysqli">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- MySQLi connects to Database -->
+        <mxCell id="dep_mysqli_db" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=2;strokeColor=#9673a6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0" edge="1" parent="1" source="comp_mysqli" target="comp_database">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Web UI uses AJAX -->
+        <mxCell id="dep_webui_ajax" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1.5;strokeColor=#6c8ebf;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0" edge="1" parent="node_client" source="comp_webui" target="comp_ajax">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="Условные обозначения:&#xa;&#xa;— Сплошная линия: сетевое соединение&#xa;— Пунктирная линия: зависимость компонентов&#xa;&#xa;Протоколы:&#xa;• HTTPS (443) - клиент ↔ веб-сервер&#xa;• TCP/IP (3306) - веб-сервер ↔ БД" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="620" width="320" height="140" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
