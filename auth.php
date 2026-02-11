@@ -104,7 +104,7 @@ function authenticateUser($username, $password) {
 }
 
 // Функция для регистрации пользователя
-function registerUser($username, $password, $role = 'user') {
+function registerUser($username, $password, $role = 'user', $phoneNumber = '') {
     $conn = connectToDatabase();
     
     // Проверяем правила пароля
@@ -129,9 +129,22 @@ function registerUser($username, $password, $role = 'user') {
         // Хешируем пароль в PHP
         $passwordHash = hashPassword($password);
         
+        // Нормализуем номер телефона, если он указан
+        $normalizedPhone = '';
+        if (!empty($phoneNumber)) {
+            $normalizedPhone = preg_replace('/[^0-9+]/', '', trim($phoneNumber));
+            if (!empty($normalizedPhone) && $normalizedPhone[0] !== '+') {
+                if (preg_match('/^[78]/', $normalizedPhone)) {
+                    $normalizedPhone = '+7' . substr($normalizedPhone, 1);
+                } else {
+                    $normalizedPhone = '+7' . $normalizedPhone;
+                }
+            }
+        }
+        
         // Вставляем пользователя напрямую
-        $stmt = $conn->prepare("INSERT INTO users (Username, PasswordHash, Role, Status, PasswordCreatedAt, CreatedAt, UpdatedAt) VALUES (?, ?, ?, 'active', NOW(), NOW(), NOW())");
-        $stmt->bind_param("sss", $username, $passwordHash, $role);
+        $stmt = $conn->prepare("INSERT INTO users (Username, PasswordHash, Role, Status, PhoneNumber, PasswordCreatedAt, CreatedAt, UpdatedAt) VALUES (?, ?, ?, 'active', ?, NOW(), NOW(), NOW())");
+        $stmt->bind_param("ssss", $username, $passwordHash, $role, $normalizedPhone);
         
         if ($stmt->execute()) {
             $conn->close();
@@ -159,6 +172,9 @@ function hasRole($role) {
 
 // Функция для выхода
 function logout() {
+    // Очищаем выбранное предприятие
+    unset($_SESSION['company_id']);
+    unset($_SESSION['selected_company_id']);
     session_destroy();
     return ['success' => true, 'message' => 'Выход выполнен успешно'];
 }
@@ -191,5 +207,53 @@ function requireRole($role) {
         header('Location: unauthorized.php');
         exit;
     }
+}
+
+// Функция для получения списка предприятий
+function getCompanies() {
+    $conn = connectToDatabase();
+    $companies = [];
+    
+    $result = $conn->query("SELECT CompanyID, CompanyName FROM companies ORDER BY CompanyName");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $companies[] = $row;
+        }
+    }
+    
+    $conn->close();
+    return $companies;
+}
+
+// Функция для сохранения выбранного предприятия в сессии
+function setSelectedCompany($companyId) {
+    $_SESSION['company_id'] = $companyId;
+}
+
+// Функция для получения выбранного предприятия из сессии
+function getSelectedCompany() {
+    return isset($_SESSION['company_id']) ? $_SESSION['company_id'] : null;
+}
+
+// Функция для получения названия выбранного предприятия
+function getSelectedCompanyName() {
+    $companyId = getSelectedCompany();
+    if (!$companyId) {
+        return '';
+    }
+    
+    $conn = connectToDatabase();
+    $stmt = $conn->prepare("SELECT CompanyName FROM companies WHERE CompanyID = ?");
+    $stmt->bind_param("i", $companyId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $companyName = '';
+    if ($row = $result->fetch_assoc()) {
+        $companyName = $row['CompanyName'];
+    }
+    $stmt->close();
+    $conn->close();
+    
+    return $companyName;
 }
 ?>

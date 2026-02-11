@@ -1,5 +1,7 @@
 <?php
 require_once 'config.php';
+require_once 'sms_providers.php';
+require_once 'auth.php';
 
 // Установка заголовков для JSON ответа
 header('Content-Type: application/json; charset=utf-8');
@@ -16,6 +18,7 @@ try {
     $messageText = trim($_POST['messageText'] ?? '');
     $selectedRecipients = $_POST['recipients'] ?? [];
     $selectedGroup = $_POST['groupSelect'] ?? '';
+    $sendToAllEmployees = isset($_POST['sendToAllEmployees']) && $_POST['sendToAllEmployees'] === '1';
 
     // Валидация данных
     if (empty($messageText)) {
@@ -24,10 +27,6 @@ try {
 
     if (strlen($messageText) > 160) {
         throw new Exception('Текст сообщения превышает 160 символов');
-    }
-
-    if (empty($selectedRecipients)) {
-        throw new Exception('Не выбран ни один получатель');
     }
 
     // Подключение к базе данных
@@ -46,9 +45,33 @@ try {
 
     // Получение информации о получателях
     $recipients = [];
-    if (!empty($selectedRecipients)) {
+    
+    // Если выбрана рассылка всем сотрудникам
+    if ($sendToAllEmployees) {
+        // Получаем всех получателей из группы "Сотрудники" (GroupID = 1)
+        $stmt = $conn->prepare("SELECT RecipientID, PhoneNumber, FullName FROM recipients WHERE GroupID = 1 AND PhoneNumber IS NOT NULL AND PhoneNumber != ''");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $recipients[] = $row;
+        }
+        $stmt->close();
+    }
+    // Если выбрана группа
+    elseif (!empty($selectedGroup)) {
+        $stmt = $conn->prepare("SELECT RecipientID, PhoneNumber, FullName FROM recipients WHERE GroupID = ? AND PhoneNumber IS NOT NULL AND PhoneNumber != ''");
+        $stmt->bind_param("i", $selectedGroup);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $recipients[] = $row;
+        }
+        $stmt->close();
+    }
+    // Если выбраны конкретные получатели
+    elseif (!empty($selectedRecipients)) {
         $placeholders = str_repeat('?,', count($selectedRecipients) - 1) . '?';
-        $stmt = $conn->prepare("SELECT RecipientID, PhoneNumber, FullName FROM recipients WHERE RecipientID IN ($placeholders)");
+        $stmt = $conn->prepare("SELECT RecipientID, PhoneNumber, FullName FROM recipients WHERE RecipientID IN ($placeholders) AND PhoneNumber IS NOT NULL AND PhoneNumber != ''");
         $stmt->bind_param(str_repeat('i', count($selectedRecipients)), ...$selectedRecipients);
         
         if (!$stmt->execute()) {
@@ -61,15 +84,39 @@ try {
         }
         $stmt->close();
     }
+    
+    // Проверка наличия получателей
+    if (empty($recipients)) {
+        throw new Exception('Не выбран ни один получатель или у получателей отсутствуют номера телефонов');
+    }
 
-    // Эмуляция отправки СМС (в реальной системе здесь будет интеграция с API оператора)
+    // Отправка SMS через выбранный провайдер (настраивается в config.php)
     $successCount = 0;
     $errorCount = 0;
     $logs = [];
 
+    // Получаем название отправителя (предприятия)
+    $companyName = '';
+    if (function_exists('getSelectedCompanyName')) {
+        $companyName = getSelectedCompanyName();
+    }
+    
     foreach ($recipients as $recipient) {
-        // Эмуляция отправки СМС
-        $status = simulateSmsSending($recipient['PhoneNumber'], $messageText);
+        // Добавляем название отправителя в конец сообщения
+        $messageWithSender = $messageText;
+        if (!empty($companyName)) {
+            $senderSuffix = ' ' . $companyName;
+            // Проверяем, не превышает ли сообщение лимит в 160 символов
+            if (strlen($messageText . $senderSuffix) <= 160) {
+                $messageWithSender = $messageText . $senderSuffix;
+            }
+        }
+        
+        // Отправка SMS через выбранный провайдер
+        $result = sendSms($recipient['PhoneNumber'], $messageWithSender);
+        
+        // Определяем статус для сохранения в БД
+        $status = $result['success'] ? 'Доставлено' : $result['status'];
         
         // Сохранение лога отправки
         $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, ?, NOW())");
@@ -79,10 +126,11 @@ try {
             $logs[] = [
                 'recipient' => $recipient['FullName'],
                 'phone' => $recipient['PhoneNumber'],
-                'status' => $status
+                'status' => $status,
+                'message' => $result['message'] ?? ''
             ];
             
-            if ($status === 'Доставлено') {
+            if ($result['success']) {
                 $successCount++;
             } else {
                 $errorCount++;
@@ -117,25 +165,5 @@ try {
     ], JSON_UNESCAPED_UNICODE);
 }
 
-/**
- * Эмуляция отправки СМС
- * В реальной системе здесь будет интеграция с API оператора связи
- */
-function simulateSmsSending($phoneNumber, $message) {
-    // Эмуляция различных статусов отправки
-    $statuses = ['Доставлено', 'Ошибка', 'В очереди'];
-    $weights = [80, 15, 5]; // 80% успех, 15% ошибка, 5% в очереди
-    
-    $random = mt_rand(1, 100);
-    $cumulative = 0;
-    
-    for ($i = 0; $i < count($statuses); $i++) {
-        $cumulative += $weights[$i];
-        if ($random <= $cumulative) {
-            return $statuses[$i];
-        }
-    }
-    
-    return 'Доставлено'; // По умолчанию
-}
+// Функция simulateSmsSending() удалена - теперь используется модуль sms_providers.php
 ?> 

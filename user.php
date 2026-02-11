@@ -1,5 +1,6 @@
 <?php
 require_once 'auth.php';
+require_once 'sms_providers.php';
 
 // Проверяем авторизацию
 requireAuth();
@@ -65,28 +66,46 @@ function syncUsersToRecipients($exclude_username = '') {
         $conn = connectToDatabase();
         $conn->begin_transaction();
         
-        // Получаем всех пользователей (исключая указанного пользователя)
+        // Получаем всех пользователей с номерами телефонов (исключая указанного пользователя)
         $exclude_condition = $exclude_username ? "AND Username != '$exclude_username'" : '';
-        $result = $conn->query("SELECT UserID, Username, Role FROM users WHERE Status = 'active' $exclude_condition");
+        $result = $conn->query("SELECT UserID, Username, PhoneNumber, Role FROM users WHERE Status = 'active' $exclude_condition");
         $synced_count = 0;
+        $updated_count = 0;
+        $skipped_count = 0;
         $errors = [];
         
         while ($user = $result->fetch_assoc()) {
+            // Пропускаем пользователей без номера телефона
+            if (empty($user['PhoneNumber']) || trim($user['PhoneNumber']) === '') {
+                $skipped_count++;
+                continue;
+            }
+            
+            // Нормализуем номер телефона (убираем пробелы, дефисы и т.д.)
+            $phone = preg_replace('/[^0-9+]/', '', trim($user['PhoneNumber']));
+            
+            // Если номер не начинается с +, добавляем +7 для российских номеров
+            if (!empty($phone) && $phone[0] !== '+') {
+                // Если номер начинается с 7 или 8, заменяем на +7
+                if (preg_match('/^[78]/', $phone)) {
+                    $phone = '+7' . substr($phone, 1);
+                } else {
+                    $phone = '+7' . $phone;
+                }
+            }
+            
             // Проверяем, есть ли уже такой получатель
-            $check_stmt = $conn->prepare("SELECT RecipientID FROM recipients WHERE FullName = ?");
+            $check_stmt = $conn->prepare("SELECT RecipientID, PhoneNumber FROM recipients WHERE FullName = ?");
             $check_stmt->bind_param("s", $user['Username']);
             $check_stmt->execute();
             $existing = $check_stmt->get_result()->fetch_assoc();
             $check_stmt->close();
             
+            // Определяем группу на основе роли
+            $group_id = ($user['Role'] === 'admin') ? 4 : 1; // 4 = Руководство, 1 = Сотрудники
+            
             if (!$existing) {
-                // Создаем номер телефона на основе UserID (заглушка)
-                $phone = '7' . str_pad($user['UserID'], 10, '0', STR_PAD_LEFT);
-                
-                // Определяем группу на основе роли
-                $group_id = ($user['Role'] === 'admin') ? 4 : 1; // 4 = Руководство, 1 = Сотрудники
-                
-                // Добавляем пользователя в recipients
+                // Добавляем нового получателя
                 $insert_stmt = $conn->prepare("INSERT INTO recipients (PhoneNumber, FullName, GroupID) VALUES (?, ?, ?)");
                 $insert_stmt->bind_param("ssi", $phone, $user['Username'], $group_id);
                 
@@ -96,16 +115,37 @@ function syncUsersToRecipients($exclude_username = '') {
                     $errors[] = "Ошибка добавления пользователя {$user['Username']}: " . $insert_stmt->error;
                 }
                 $insert_stmt->close();
+            } else {
+                // Обновляем существующего получателя, если номер телефона изменился
+                if ($existing['PhoneNumber'] !== $phone) {
+                    $update_stmt = $conn->prepare("UPDATE recipients SET PhoneNumber = ?, GroupID = ? WHERE RecipientID = ?");
+                    $update_stmt->bind_param("sii", $phone, $group_id, $existing['RecipientID']);
+                    
+                    if ($update_stmt->execute()) {
+                        $updated_count++;
+                    } else {
+                        $errors[] = "Ошибка обновления пользователя {$user['Username']}: " . $update_stmt->error;
+                    }
+                    $update_stmt->close();
+                }
             }
         }
         
         $conn->commit();
         $conn->close();
         
+        $message = "Синхронизация завершена! Добавлено: $synced_count, обновлено: $updated_count";
+        if ($skipped_count > 0) {
+            $message .= ", пропущено (без номера телефона): $skipped_count";
+        }
+        
         return [
             'success' => true,
             'synced_count' => $synced_count,
-            'errors' => $errors
+            'updated_count' => $updated_count,
+            'skipped_count' => $skipped_count,
+            'errors' => $errors,
+            'message' => $message
         ];
         
     } catch (Exception $e) {
@@ -126,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // Синхронизируем всех пользователей, включая текущего
         $sync_result = syncUsersToRecipients('');
         if ($sync_result['success']) {
-            $message = "Синхронизация завершена! Добавлено получателей: " . $sync_result['synced_count'];
+            $message = $sync_result['message'] ?? "Синхронизация завершена! Добавлено получателей: " . $sync_result['synced_count'];
             if (!empty($sync_result['errors'])) {
                 $message .= ". Ошибки: " . implode(', ', $sync_result['errors']);
             }
@@ -217,9 +257,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $messageId = $conn->insert_id;
                 $stmt->close();
 
+                // Получаем номер телефона получателя
+                $stmt = $conn->prepare("SELECT PhoneNumber FROM recipients WHERE RecipientID = ?");
+                $stmt->bind_param("i", $recipient_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $recipient = $result->fetch_assoc();
+                $stmt->close();
+                
+                if (!$recipient || empty($recipient['PhoneNumber'])) {
+                    $conn->rollback();
+                    $conn->close();
+                    $error = 'У получателя не указан номер телефона';
+                    logSystemAction('user', 'sms_error', 'У получателя ID: ' . $recipient_id . ' не указан номер телефона');
+                } else {
+                    // Добавляем название отправителя в конец сообщения
+                    $companyName = '';
+                    if (function_exists('getSelectedCompanyName')) {
+                        $companyName = getSelectedCompanyName();
+                    }
+                    $messageWithSender = $message_text;
+                    if (!empty($companyName)) {
+                        $senderSuffix = ' ' . $companyName;
+                        // Проверяем, не превышает ли сообщение лимит в 160 символов
+                        if (mb_strlen($message_text . $senderSuffix) <= 160) {
+                            $messageWithSender = $message_text . $senderSuffix;
+                        }
+                    }
+                    
+                    // Отправка SMS через выбранный провайдер
+                    $smsResult = sendSms($recipient['PhoneNumber'], $messageWithSender);
+                    $smsStatus = $smsResult['success'] ? 'Доставлено' : ($smsResult['status'] ?? 'Ошибка');
+
                 // Добавляем запись в messagelogs
-                $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, 'sent', NOW())");
-                $stmt->bind_param("ii", $messageId, $recipient_id);
+                    $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, ?, NOW())");
+                    $stmt->bind_param("iis", $messageId, $recipient_id, $smsStatus);
                 $stmt->execute();
                 $stmt->close();
                 
@@ -232,13 +304,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 if ($ok) {
                     $conn->commit();
-                    $message = 'SMS сообщение отправлено успешно!';
                     $preview = mb_substr((string)$message_text, 0, 120);
-                    logSystemAction('user', 'sms_send', 'SMS: ' . $preview . '; получатель ID: ' . $recipient_id);
+                        $logMessage = 'SMS: ' . $preview . '; получатель ID: ' . $recipient_id;
+                        if ($smsResult['success']) {
+                            $message = 'SMS сообщение отправлено успешно!';
+                            $logMessage .= '; SMS отправлено';
+                        } else {
+                            $error = 'SMS не отправлено: ' . ($smsResult['message'] ?? 'Ошибка');
+                            $logMessage .= '; SMS не отправлено: ' . ($smsResult['message'] ?? 'Ошибка');
+                        }
+                        logSystemAction('user', 'sms_send', $logMessage);
                 } else {
                     $conn->rollback();
                     $error = 'Не удалось отправить SMS сообщение';
                     logSystemAction('user', 'sms_error', 'Ошибка отправки SMS');
+                    }
                 }
                 $conn->close();
             } catch (Exception $e) {
@@ -1005,7 +1085,7 @@ $conn->close();
     </style>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="app-shell">
     <?php include 'navigation.php'; ?>
     <div class="page-header">
         <div class="header-content">

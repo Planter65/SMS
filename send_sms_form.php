@@ -12,6 +12,7 @@ $error = '';
 $conn = connectToDatabase();
 $recipients = [];
 $groups = [];
+$templates = [];
 
 try {
     // Получаем список получателей
@@ -32,7 +33,33 @@ try {
     while ($row = $result->fetch_assoc()) {
         $groups[] = $row;
     }
-    
+
+    // Получаем список шаблонов SMS для выбранного предприятия
+    $companyId = getSelectedCompany();
+    if ($companyId) {
+        // Убеждаемся, что таблица шаблонов существует
+        $conn->query("CREATE TABLE IF NOT EXISTS sms_templates (
+            TemplateID INT AUTO_INCREMENT PRIMARY KEY,
+            CompanyID INT NOT NULL,
+            TemplateName VARCHAR(255) NOT NULL,
+            TemplateText TEXT NOT NULL,
+            CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (CompanyID) REFERENCES companies(CompanyID) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $stmt = $conn->prepare("SELECT TemplateID, TemplateName, TemplateText FROM sms_templates WHERE CompanyID = ? ORDER BY TemplateID DESC");
+        $stmt->bind_param("i", $companyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        while ($row = $result->fetch_assoc()) {
+            $templates[] = $row;
+        }
+
+        $stmt->close();
+    }
+
 } catch (Exception $e) {
     $error = 'Ошибка загрузки данных: ' . $e->getMessage();
 }
@@ -362,7 +389,27 @@ $conn->close();
         <form id="smsForm" method="POST" action="send_sms.php">
             <div class="card">
                 <h2>💬 Отправка СМС сообщения</h2>
-                
+
+                <?php if (!empty($templates)): ?>
+                <div class="form-group">
+                    <label for="templateSelect">Шаблоны сообщения:</label>
+                    <select id="templateSelect">
+                        <option value="">Выберите шаблон...</option>
+                        <?php foreach ($templates as $template): ?>
+                            <option 
+                                value="<?php echo $template['TemplateID']; ?>" 
+                                data-text="<?php echo htmlspecialchars($template['TemplateText'], ENT_QUOTES, 'UTF-8'); ?>"
+                            >
+                                <?php echo htmlspecialchars($template['TemplateName']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                        При выборе шаблона его текст автоматически подставится в поле сообщения. Вы можете отредактировать текст перед отправкой.
+                    </small>
+                </div>
+                <?php endif; ?>
+
                 <div class="form-group">
                     <label for="messageText">Текст сообщения:</label>
                     <textarea id="messageText" name="messageText" maxlength="160" placeholder="Введите текст СМС сообщения (максимум 160 символов)" required></textarea>
@@ -372,11 +419,21 @@ $conn->close();
                 <div class="form-group">
                     <label for="groupSelect">Выберите группу получателей:</label>
                     <select id="groupSelect" name="groupSelect">
-                        <option value="">Все получатели</option>
+                        <option value="">Выберите группу (опционально)</option>
                         <?php foreach ($groups as $group): ?>
                             <option value="<?php echo $group['GroupID']; ?>"><?php echo htmlspecialchars($group['GroupName']); ?></option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="sendToAllEmployees" name="sendToAllEmployees" value="1" style="width: auto; transform: scale(1.3);">
+                        <span style="font-weight: 600; color: #4CAF50;">📢 Отправить всем сотрудникам (группа "Сотрудники")</span>
+                    </label>
+                    <small style="color: #666; font-size: 12px; margin-left: 30px; display: block; margin-top: 5px;">
+                        При выборе этой опции сообщение будет отправлено всем получателям из группы "Сотрудники"
+                    </small>
                 </div>
 
                 <div class="recipients-section">
@@ -415,6 +472,7 @@ $conn->close();
         // Счетчик символов
         const messageText = document.getElementById('messageText');
         const charCounter = document.getElementById('charCounter');
+        const templateSelect = document.getElementById('templateSelect');
         const maxLength = 160;
 
         messageText.addEventListener('input', function() {
@@ -430,25 +488,76 @@ $conn->close();
             }
         });
 
+        // Подстановка текста шаблона в поле сообщения (добавление к существующему тексту)
+        if (templateSelect) {
+            templateSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                const templateText = selectedOption.getAttribute('data-text') || '';
+
+                if (!templateText) {
+                    return;
+                }
+
+                // Добавляем текст шаблона к уже существующему тексту
+                let current = messageText.value || '';
+                if (current.trim().length === 0) {
+                    current = templateText;
+                } else {
+                    // Добавляем с пробелом, чтобы не склеивались слова
+                    current = current + ' ' + templateText;
+                }
+                messageText.value = current;
+
+                // Обновляем счетчик символов
+                const event = new Event('input');
+                messageText.dispatchEvent(event);
+            });
+        }
+
         // Фильтрация получателей по группе
         const groupSelect = document.getElementById('groupSelect');
         const recipientsList = document.getElementById('recipientsList');
-        const recipientItems = recipientsList.querySelectorAll('.recipient-item');
+        const sendToAllEmployees = document.getElementById('sendToAllEmployees');
+        let recipientItems = recipientsList.querySelectorAll('.recipient-item');
 
-        groupSelect.addEventListener('change', function() {
-            const selectedGroup = this.value;
+        function updateRecipientsDisplay() {
+            const selectedGroup = groupSelect.value;
+            const sendToAll = sendToAllEmployees.checked;
             
             recipientItems.forEach(item => {
                 const groupSpan = item.querySelector('.recipient-group');
                 const checkbox = item.querySelector('input[type="checkbox"]');
                 
-                if (!selectedGroup || (groupSpan && groupSpan.textContent.trim() === this.options[this.selectedIndex].text)) {
+                if (sendToAll) {
+                    // При отправке всем сотрудникам показываем только группу "Сотрудники"
+                    if (groupSpan && groupSpan.textContent.trim() === 'Сотрудники') {
+                        item.style.display = 'flex';
+                        checkbox.checked = true;
+                    } else {
+                        item.style.display = 'none';
+                        checkbox.checked = false;
+                    }
+                } else if (!selectedGroup || (groupSpan && groupSpan.textContent.trim() === groupSelect.options[groupSelect.selectedIndex].text)) {
                     item.style.display = 'flex';
                 } else {
                     item.style.display = 'none';
                     checkbox.checked = false;
                 }
             });
+        }
+
+        groupSelect.addEventListener('change', function() {
+            if (sendToAllEmployees.checked) {
+                sendToAllEmployees.checked = false;
+            }
+            updateRecipientsDisplay();
+        });
+
+        sendToAllEmployees.addEventListener('change', function() {
+            if (this.checked) {
+                groupSelect.value = '';
+            }
+            updateRecipientsDisplay();
         });
 
         // Выбор всех получателей
@@ -467,12 +576,8 @@ $conn->close();
         document.getElementById('smsForm').addEventListener('submit', function(e) {
             const selectedRecipients = recipientsList.querySelectorAll('input[type="checkbox"]:checked');
             const messageText = document.getElementById('messageText').value.trim();
-            
-            if (selectedRecipients.length === 0) {
-                e.preventDefault();
-                showStatus('Пожалуйста, выберите хотя бы одного получателя', 'error');
-                return;
-            }
+            const sendToAll = sendToAllEmployees.checked;
+            const selectedGroup = groupSelect.value;
             
             if (!messageText) {
                 e.preventDefault();
@@ -484,6 +589,22 @@ $conn->close();
                 e.preventDefault();
                 showStatus('Текст сообщения превышает 160 символов', 'error');
                 return;
+            }
+            
+            // Проверяем наличие получателей только если не выбрана массовая рассылка
+            if (!sendToAll && !selectedGroup && selectedRecipients.length === 0) {
+                e.preventDefault();
+                showStatus('Пожалуйста, выберите хотя бы одного получателя, группу или опцию "Отправить всем сотрудникам"', 'error');
+                return;
+            }
+            
+            // Добавляем скрытое поле для массовой рассылки
+            if (sendToAll) {
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'sendToAllEmployees';
+                hiddenInput.value = '1';
+                this.appendChild(hiddenInput);
             }
             
             showStatus('Отправка СМС...', 'success');

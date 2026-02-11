@@ -1,0 +1,512 @@
+{
+    "meta": {
+        "created_at": "2025-12-15T03:19:31+01:00",
+        "host": "localhost:3000",
+        "script": "\/admin.php"
+    },
+    "data": {
+        "recipients": [
+            {
+                "RecipientID": "1",
+                "PhoneNumber": "79505850016",
+                "FullName": "Вареников",
+                "GroupID": "5"
+            },
+            {
+                "RecipientID": "2",
+                "PhoneNumber": "70000000002",
+                "FullName": "user",
+                "GroupID": "1"
+            },
+            {
+                "RecipientID": "3",
+                "PhoneNumber": "70000000004",
+                "FullName": "Илья",
+                "GroupID": "4"
+            },
+            {
+                "RecipientID": "4",
+                "PhoneNumber": "70000000010",
+                "FullName": "Дима",
+                "GroupID": "1"
+            },
+            {
+                "RecipientID": "5",
+                "PhoneNumber": "70000000011",
+                "FullName": "Данил",
+                "GroupID": "1"
+            },
+            {
+                "RecipientID": "6",
+                "PhoneNumber": "+79505850016",
+                "FullName": "Илья1",
+                "GroupID": "4"
+            },
+            {
+                "RecipientID": "7",
+                "PhoneNumber": "+79505850017",
+                "FullName": "Никита",
+                "GroupID": "1"
+            }
+        ],
+        "groups": [
+            {
+                "GroupID": "1",
+                "GroupName": "Сотрудники"
+            },
+            {
+                "GroupID": "2",
+                "GroupName": "Клиенты"
+            },
+            {
+                "GroupID": "3",
+                "GroupName": "Поставщики"
+            },
+            {
+                "GroupID": "4",
+                "GroupName": "Руководство"
+            },
+            {
+                "GroupID": "5",
+                "GroupName": "IT отдел"
+            }
+        ],
+        "messages": [
+            {
+                "MessageID": "1",
+                "Text": "Сделай отчет"
+            },
+            {
+                "MessageID": "2",
+                "Text": "Дима скинь работу"
+            },
+            {
+                "MessageID": "6",
+                "Text": "Спасибо"
+            },
+            {
+                "MessageID": "7",
+                "Text": "rere"
+            },
+            {
+                "MessageID": "8",
+                "Text": "rere"
+            },
+            {
+                "MessageID": "9",
+                "Text": "Спасибо"
+            },
+            {
+                "MessageID": "10",
+                "Text": "Спасибо"
+            },
+            {
+                "MessageID": "11",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "12",
+                "Text": "КУ-ку"
+            },
+            {
+                "MessageID": "13",
+                "Text": "епта"
+            },
+            {
+                "MessageID": "14",
+                "Text": "Ghbdtncnde."
+            },
+            {
+                "MessageID": "15",
+                "Text": "ненен"
+            },
+            {
+                "MessageID": "16",
+                "Text": "Куку"
+            },
+            {
+                "MessageID": "17",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "18",
+                "Text": "Rere"
+            },
+            {
+                "MessageID": "19",
+                "Text": "Нужно в бухгалтерию отнести бумаги."
+            },
+            {
+                "MessageID": "20",
+                "Text": "Помоги"
+            },
+            {
+                "MessageID": "21",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "22",
+                "Text": "Ку-ку"
+            },
+            {
+                "MessageID": "23",
+                "Text": "ку"
+            },
+            {
+                "MessageID": "24",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "25",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "26",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "27",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "28",
+                "Text": "123"
+            },
+            {
+                "MessageID": "29",
+                "Text": "Нужен отчет по практике"
+            },
+            {
+                "MessageID": "30",
+                "Text": "сюда"
+            },
+            {
+                "MessageID": "31",
+                "Text": "куку"
+            },
+            {
+                "MessageID": "32",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "33",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "34",
+                "Text": "Дорогой коллега. Нужно в 12:00 придти и помочь администратору с кодом."
+            },
+            {
+                "MessageID": "35",
+                "Text": "Завтра можешь не приходить."
+            }
+        ],
+        "messagelogs": [
+            {
+                "LogID": "41",
+                "MessageID": "35",
+                "RecipientID": "1",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-15 08:25:24"
+            },
+            {
+                "LogID": "40",
+                "MessageID": "34",
+                "RecipientID": "1",
+                "Status": "В очереди",
+                "SentDate": "2025-12-12 10:06:22"
+            },
+            {
+                "LogID": "39",
+                "MessageID": "33",
+                "RecipientID": "1",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-12 10:04:48"
+            },
+            {
+                "LogID": "38",
+                "MessageID": "32",
+                "RecipientID": "1",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-12 10:04:01"
+            },
+            {
+                "LogID": "37",
+                "MessageID": "31",
+                "RecipientID": "1",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-12 10:03:49"
+            },
+            {
+                "LogID": "36",
+                "MessageID": "30",
+                "RecipientID": "1",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 17:52:23"
+            },
+            {
+                "LogID": "35",
+                "MessageID": "29",
+                "RecipientID": "1",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:48:08"
+            },
+            {
+                "LogID": "34",
+                "MessageID": "28",
+                "RecipientID": "7",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:16"
+            },
+            {
+                "LogID": "33",
+                "MessageID": "28",
+                "RecipientID": "6",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:16"
+            },
+            {
+                "LogID": "32",
+                "MessageID": "28",
+                "RecipientID": "5",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:16"
+            },
+            {
+                "LogID": "31",
+                "MessageID": "28",
+                "RecipientID": "4",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:15"
+            },
+            {
+                "LogID": "30",
+                "MessageID": "28",
+                "RecipientID": "3",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:15"
+            },
+            {
+                "LogID": "29",
+                "MessageID": "28",
+                "RecipientID": "2",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:15"
+            },
+            {
+                "LogID": "28",
+                "MessageID": "28",
+                "RecipientID": "1",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:15"
+            },
+            {
+                "LogID": "27",
+                "MessageID": "27",
+                "RecipientID": "6",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 13:47:52"
+            },
+            {
+                "LogID": "26",
+                "MessageID": "26",
+                "RecipientID": "6",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 13:47:49"
+            },
+            {
+                "LogID": "25",
+                "MessageID": "25",
+                "RecipientID": "6",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 13:47:45"
+            },
+            {
+                "LogID": "24",
+                "MessageID": "24",
+                "RecipientID": "6",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 13:47:43"
+            },
+            {
+                "LogID": "23",
+                "MessageID": "23",
+                "RecipientID": "6",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-11 13:36:55"
+            },
+            {
+                "LogID": "22",
+                "MessageID": "22",
+                "RecipientID": "6",
+                "Status": "sent",
+                "SentDate": "2025-12-11 10:12:45"
+            },
+            {
+                "LogID": "21",
+                "MessageID": "21",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-12-11 10:11:32"
+            },
+            {
+                "LogID": "20",
+                "MessageID": "20",
+                "RecipientID": "4",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-11 10:00:44"
+            },
+            {
+                "LogID": "19",
+                "MessageID": "19",
+                "RecipientID": "4",
+                "Status": "sent",
+                "SentDate": "2025-11-26 15:52:53"
+            },
+            {
+                "LogID": "18",
+                "MessageID": "18",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-20 10:26:22"
+            },
+            {
+                "LogID": "17",
+                "MessageID": "17",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-20 10:15:27"
+            },
+            {
+                "LogID": "16",
+                "MessageID": "16",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-20 10:14:23"
+            },
+            {
+                "LogID": "15",
+                "MessageID": "15",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 19:10:47"
+            },
+            {
+                "LogID": "14",
+                "MessageID": "14",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 19:07:29"
+            },
+            {
+                "LogID": "13",
+                "MessageID": "13",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 19:02:13"
+            },
+            {
+                "LogID": "12",
+                "MessageID": "12",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 18:49:32"
+            },
+            {
+                "LogID": "11",
+                "MessageID": "11",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 18:45:29"
+            },
+            {
+                "LogID": "10",
+                "MessageID": "10",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 18:06:28"
+            },
+            {
+                "LogID": "9",
+                "MessageID": "9",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 17:42:39"
+            },
+            {
+                "LogID": "8",
+                "MessageID": "8",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 17:03:25"
+            },
+            {
+                "LogID": "7",
+                "MessageID": "7",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 17:01:30"
+            },
+            {
+                "LogID": "6",
+                "MessageID": "6",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 16:58:29"
+            },
+            {
+                "LogID": "2",
+                "MessageID": "2",
+                "RecipientID": "1",
+                "Status": "sent",
+                "SentDate": "2025-10-01 15:07:30"
+            },
+            {
+                "LogID": "1",
+                "MessageID": "1",
+                "RecipientID": "1",
+                "Status": "sent",
+                "SentDate": "2025-09-29 16:43:45"
+            }
+        ],
+        "users": [
+            {
+                "UserID": "2",
+                "Username": "user",
+                "Role": "user",
+                "Status": "active",
+                "CreatedAt": "2025-09-29 09:17:08"
+            },
+            {
+                "UserID": "11",
+                "Username": "Данил",
+                "Role": "user",
+                "Status": "active",
+                "CreatedAt": "2025-10-19 16:21:47"
+            },
+            {
+                "UserID": "12",
+                "Username": "Илья1",
+                "Role": "admin",
+                "Status": "active",
+                "CreatedAt": "2025-11-24 19:34:00"
+            },
+            {
+                "UserID": "13",
+                "Username": "Никита",
+                "Role": "user",
+                "Status": "active",
+                "CreatedAt": "2025-12-11 15:52:31"
+            }
+        ],
+        "user_feedback": [
+            {
+                "FeedbackID": "1",
+                "Username": "user",
+                "Status": "Отказано",
+                "Message": "Потом сделаю",
+                "CreatedAt": "2025-10-01 14:58:14"
+            }
+        ]
+    }
+}

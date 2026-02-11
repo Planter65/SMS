@@ -6,7 +6,7 @@
     <style> 
         body { 
             font-family: Arial, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: url("fon.gif") center/cover fixed no-repeat, #eef2f7;
             margin: 0; 
             padding: 20px; 
             min-height: 100vh;
@@ -132,7 +132,7 @@
     <title>Система СМС информирования - Просмотр данных</title> 
     <link rel="stylesheet" href="styles.css">
 </head> 
-<body> 
+<body class="app-shell"> 
     <?php include 'navigation.php'; ?>
 
 <?php 

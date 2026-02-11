@@ -208,6 +208,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'valid
             margin-top: 20px;
             display: none;
         }
+
+        .integration-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -226,9 +234,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'valid
                 <textarea id="integrationPayload" placeholder="Например: AdminUser#2025!"></textarea>
             </div>
 
-            <button class="btn" id="checkIntegrationBtn">
-                <i class="fas fa-shield-alt"></i> Проверить интеграцию
-            </button>
+            <div class="integration-actions">
+                <button class="btn" id="checkIntegrationBtn">
+                    <i class="fas fa-shield-alt"></i> Проверить интеграцию
+                </button>
+                <button class="btn btn-secondary" id="loadJsonBtn" type="button">
+                    <i class="fas fa-file-upload"></i> Загрузить JSON
+                </button>
+                <input type="file" id="jsonFileInput" accept=".json,application/json" hidden>
+            </div>
 
             <div class="status-message" id="integrationStatus"></div>
 
@@ -267,6 +281,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'valid
         const criteriaList = document.getElementById('integrationCriteriaList');
         const statusBlock = document.getElementById('integrationStatus');
         const matchResultBlock = document.getElementById('matchResult');
+        const loadJsonBtn = document.getElementById('loadJsonBtn');
+        const jsonFileInput = document.getElementById('jsonFileInput');
 
         const localCriteria = {
             length: value => value.length >= 12,
@@ -293,10 +309,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'valid
         };
 
         const showStatus = (message, isSuccess) => {
-            if (!statusBlock) return;
+            if (!statusBlock) {
+                return;
+            }
             statusBlock.textContent = message;
             statusBlock.className = 'status-message ' + (isSuccess ? 'status-success' : 'status-error');
             statusBlock.style.display = 'block';
+        };
+
+        const toggleCheckLoading = (isLoading) => {
+            if (!checkBtn) {
+                return;
+            }
+            checkBtn.disabled = isLoading;
+            checkBtn.innerHTML = isLoading
+                ? '<i class="fas fa-spinner fa-spin"></i> Проверка...'
+                : '<i class="fas fa-shield-alt"></i> Проверить интеграцию';
+        };
+
+        const validateIntegration = (payload) => {
+            const trimmed = (payload || '').trim();
+            if (!trimmed) {
+                showStatus('Введите интеграционную строку для проверки', false);
+                return;
+            }
+
+            toggleCheckLoading(true);
+
+            const formData = new FormData();
+            formData.append('action', 'validate_integration');
+            formData.append('payload', trimmed);
+
+            fetch('integration.php', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        showStatus('Ошибка проверки. Попробуйте снова.', false);
+                        return;
+                    }
+
+                    refreshCriteriaBoard(data.criteria || {});
+                    showStatus(data.message || '', Boolean(data.criteria?.db_match));
+
+                    if (data.match) {
+                        matchResultBlock.textContent = `Найдена запись: ${data.match.type} "${data.match.value}" (таблица ${data.match.table})`;
+                        matchResultBlock.classList.remove('error');
+                        matchResultBlock.style.display = 'block';
+                    } else {
+                        matchResultBlock.textContent = 'Запись не найдена в пользователях, получателях или группах.';
+                        matchResultBlock.classList.add('error');
+                        matchResultBlock.style.display = 'block';
+                    }
+                })
+                .catch(() => {
+                    showStatus('Не удалось выполнить проверку. Проверьте подключение.', false);
+                })
+                .finally(() => {
+                    toggleCheckLoading(false);
+                });
         };
 
         payloadInput.addEventListener('input', (event) => {
@@ -311,51 +384,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'valid
         });
 
         checkBtn.addEventListener('click', () => {
-            const payload = payloadInput.value.trim();
-            if (!payload) {
-                showStatus('Введите интеграционную строку для проверки', false);
-                return;
-            }
+            validateIntegration(payloadInput.value);
+        });
 
-            checkBtn.disabled = true;
-            checkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...';
+        if (loadJsonBtn && jsonFileInput) {
+            loadJsonBtn.addEventListener('click', () => {
+                jsonFileInput.click();
+            });
 
-            const formData = new FormData();
-            formData.append('action', 'validate_integration');
-            formData.append('payload', payload);
-
-            fetch('integration.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    showStatus('Ошибка проверки. Попробуйте снова.', false);
+            jsonFileInput.addEventListener('change', (event) => {
+                const file = event.target.files && event.target.files[0];
+                if (!file) {
                     return;
                 }
 
-                refreshCriteriaBoard(data.criteria || {});
-                showStatus(data.message || '', data.criteria?.db_match);
-
-                if (data.match) {
-                    matchResultBlock.textContent = `Найдена запись: ${data.match.type} "${data.match.value}" (таблица ${data.match.table})`;
-                    matchResultBlock.classList.remove('error');
-                    matchResultBlock.style.display = 'block';
-                } else {
-                    matchResultBlock.textContent = 'Запись не найдена в пользователях, получателях или группах.';
-                    matchResultBlock.classList.add('error');
-                    matchResultBlock.style.display = 'block';
+                if (file.type && file.type !== 'application/json') {
+                    showStatus('Пожалуйста, выберите JSON-файл.', false);
+                    jsonFileInput.value = '';
+                    return;
                 }
-            })
-            .catch(() => {
-                showStatus('Не удалось выполнить проверку. Проверьте подключение.', false);
-            })
-            .finally(() => {
-                checkBtn.disabled = false;
-                checkBtn.innerHTML = '<i class="fas fa-shield-alt"></i> Проверить интеграцию';
+
+                const reader = new FileReader();
+                reader.onload = (loadEvent) => {
+                    try {
+                        const data = JSON.parse(loadEvent.target.result);
+                        const rawValue = data?.value;
+                        const stringValue = rawValue !== undefined ? String(rawValue).trim() : '';
+
+                        if (!stringValue) {
+                            showStatus('Поле "value" отсутствует или пустое.', false);
+                            return;
+                        }
+
+                        payloadInput.value = stringValue;
+                        payloadInput.dispatchEvent(new Event('input'));
+                        validateIntegration(stringValue);
+                    } catch (error) {
+                        showStatus('Не удалось прочитать содержимое JSON-файла.', false);
+                    } finally {
+                        jsonFileInput.value = '';
+                    }
+                };
+
+                reader.onerror = () => {
+                    showStatus('Ошибка чтения файла. Попробуйте другой файл.', false);
+                    jsonFileInput.value = '';
+                };
+
+                reader.readAsText(file, 'UTF-8');
             });
-        });
+        }
     </script>
 </body>
 </html>

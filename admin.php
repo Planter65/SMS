@@ -1,5 +1,6 @@
 <?php
 require_once 'auth.php';
+require_once 'sms_providers.php';
 
 // Проверяем авторизацию и права администратора
 requireRole('admin');
@@ -7,7 +8,7 @@ requireRole('admin');
 $user = getCurrentUser();
 $message = '';
 $error = '';
-
+$groups = fetchGroups(); // Загружаем группы для использования в HTML
 // Обработка AJAX запросов
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -37,17 +38,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         case 'get_statistics':
             echo json_encode(['success' => true, 'data' => fetchStatistics()]);
             exit;
+        case 'clear_message_history':
+            echo json_encode(clearMessageHistory());
+            exit;
         case 'add_user':
             $username = trim($_POST['username'] ?? '');
             $password = $_POST['password'] ?? '';
             $role = $_POST['role'] ?? 'user';
+            $phoneNumber = trim($_POST['phoneNumber'] ?? '');
             if ($username === '' || $password === '') {
                 echo json_encode(['success' => false, 'message' => 'Введите имя пользователя и пароль']);
                 exit;
             }
-            $res = registerUser($username, $password, $role);
+            $res = registerUser($username, $password, $role, $phoneNumber);
             if (is_array($res) && !empty($res['success'])) {
-                logSystemAction('users', 'add', 'Добавлен пользователь: ' . $username . ', роль: ' . $role);
+                $phoneInfo = !empty($phoneNumber) ? ', телефон: ' . $phoneNumber : '';
+                logSystemAction('users', 'add', 'Добавлен пользователь: ' . $username . ', роль: ' . $role . $phoneInfo);
             } else {
                 logSystemAction('users', 'add_error', 'Ошибка добавления пользователя: ' . $username);
             }
@@ -73,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $password = $_POST['password'] ?? '';
             $role = $_POST['role'] ?? 'user';
             $status = $_POST['status'] ?? 'active';
+            $phoneNumber = trim($_POST['phoneNumber'] ?? '');
             
             if ($id <= 0) {
                 echo json_encode(['success' => false, 'message' => 'Некорректный ID пользователя']);
@@ -84,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 exit;
             }
             
-            echo json_encode(updateUserById($id, $username, $password, $role, $status));
+            echo json_encode(updateUserById($id, $username, $password, $role, $status, $phoneNumber));
             exit;
         case 'get_system_logs':
             echo json_encode(['success' => true, 'data' => fetchSystemLogs()]);
@@ -99,7 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             echo json_encode(importDatabaseBackup());
             exit;
         case 'sync_users':
-            echo json_encode(syncUsersToRecipients(''));
+            $result = syncUsersToRecipients('');
+            if ($result['success']) {
+                logSystemAction('users', 'sync', $result['message'] ?? 'Синхронизация пользователей завершена');
+            }
+            echo json_encode($result);
             exit;
         case 'send_user_message':
             echo json_encode(sendUserMessage($_POST));
@@ -109,6 +120,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         case 'update_read_status':
             echo json_encode(updateMessageReadStatus($_POST));
+            exit;
+        case 'clear_system_logs':
+            echo json_encode(clearSystemLogs());
+            exit;
+        case 'add_sms_template':
+            echo json_encode(addSmsTemplate($_POST));
+            exit;
+        case 'update_sms_template':
+            echo json_encode(updateSmsTemplate($_POST));
+            exit;
+        case 'delete_sms_template':
+            echo json_encode(deleteSmsTemplate($_POST));
+            exit;
+        case 'get_sms_templates':
+            echo json_encode(['success' => true, 'data' => fetchSmsTemplates()]);
+            exit;
+        case 'get_sms_template':
+            $id = intval($_POST['id'] ?? 0);
+            echo json_encode(['success' => true, 'data' => getSmsTemplateById($id)]);
             exit;
     }
 }
@@ -218,6 +248,18 @@ function fetchMessageHistory() {
     return $rows;
 }
 
+function clearMessageHistory() {
+    try {
+        $conn = connectToDatabase();
+        $conn->query("DELETE FROM messagelogs");
+        $conn->close();
+        logSystemAction('messages', 'history_clear', 'История сообщений очищена');
+        return ['success' => true, 'message' => 'История сообщений очищена'];
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка очистки истории: ' . $e->getMessage()];
+    }
+}
+
 function fetchStatistics() {
     $conn = connectToDatabase();
     $stats = [];
@@ -231,7 +273,7 @@ function fetchStatistics() {
 
 function fetchUsers() {
     $conn = connectToDatabase();
-    $sql = "SELECT UserID, Username, Role, Status, CreatedAt FROM users ORDER BY UserID DESC";
+    $sql = "SELECT UserID, Username, PhoneNumber, Role, Status, CreatedAt FROM users ORDER BY UserID DESC";
     $result = $conn->query($sql);
     $rows = [];
     while ($row = $result->fetch_assoc()) { $rows[] = $row; }
@@ -264,7 +306,7 @@ function deleteUserById($id) {
     return ['success' => $ok, 'message' => $ok ? 'Пользователь удален' : 'Не удалось удалить пользователя'];
 }
 
-function updateUserById($id, $username, $password, $role, $status) {
+function updateUserById($id, $username, $password, $role, $status, $phoneNumber = '') {
     try {
         $conn = connectToDatabase();
         
@@ -292,16 +334,29 @@ function updateUserById($id, $username, $password, $role, $status) {
             return ['success' => false, 'message' => 'Пользователь с таким именем уже существует'];
         }
         
+        // Нормализуем номер телефона, если он указан
+        $normalizedPhone = '';
+        if (!empty($phoneNumber)) {
+            $normalizedPhone = preg_replace('/[^0-9+]/', '', trim($phoneNumber));
+            if (!empty($normalizedPhone) && $normalizedPhone[0] !== '+') {
+                if (preg_match('/^[78]/', $normalizedPhone)) {
+                    $normalizedPhone = '+7' . substr($normalizedPhone, 1);
+                } else {
+                    $normalizedPhone = '+7' . $normalizedPhone;
+                }
+            }
+        }
+        
         // Обновляем пользователя
         if (!empty($password)) {
             // Если пароль указан, обновляем с паролем
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("UPDATE users SET Username = ?, Password = ?, Role = ?, Status = ? WHERE UserID = ?");
-            $stmt->bind_param("ssssi", $username, $hashed_password, $role, $status, $id);
+            $stmt = $conn->prepare("UPDATE users SET Username = ?, PasswordHash = ?, Role = ?, Status = ?, PhoneNumber = ? WHERE UserID = ?");
+            $stmt->bind_param("sssssi", $username, $hashed_password, $role, $status, $normalizedPhone, $id);
         } else {
             // Если пароль не указан, обновляем без пароля
-            $stmt = $conn->prepare("UPDATE users SET Username = ?, Role = ?, Status = ? WHERE UserID = ?");
-            $stmt->bind_param("sssi", $username, $role, $status, $id);
+            $stmt = $conn->prepare("UPDATE users SET Username = ?, Role = ?, Status = ?, PhoneNumber = ? WHERE UserID = ?");
+            $stmt->bind_param("ssssi", $username, $role, $status, $normalizedPhone, $id);
         }
         
         $ok = $stmt->execute();
@@ -309,7 +364,8 @@ function updateUserById($id, $username, $password, $role, $status) {
         $conn->close();
         
         if ($ok) {
-            logSystemAction('users', 'update', 'Обновлен пользователь ID=' . $id . ', имя: ' . $username . ', роль: ' . $role);
+            $phoneInfo = !empty($normalizedPhone) ? ', телефон: ' . $normalizedPhone : '';
+            logSystemAction('users', 'update', 'Обновлен пользователь ID=' . $id . ', имя: ' . $username . ', роль: ' . $role . $phoneInfo);
             return ['success' => true, 'message' => 'Пользователь успешно обновлен'];
         } else {
             return ['success' => false, 'message' => 'Не удалось обновить пользователя'];
@@ -359,6 +415,19 @@ function fetchSystemLogs() {
     }
     $conn->close();
     return $rows;
+}
+
+function clearSystemLogs() {
+    try {
+        $conn = connectToDatabase();
+        ensureSystemLogsTable($conn);
+        $conn->query("TRUNCATE TABLE system_logs");
+        $conn->close();
+        logSystemAction('system', 'logs_cleared', 'Журнал действий очищен');
+        return ['success' => true, 'message' => 'Журнал действий очищен'];
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка очистки журнала: ' . $e->getMessage()];
+    }
 }
 
 // Бекап базы данных (JSON файлы в папке backups)
@@ -608,28 +677,46 @@ function syncUsersToRecipients($exclude_username = '') {
         $conn = connectToDatabase();
         $conn->begin_transaction();
         
-        // Получаем всех пользователей (исключая указанного пользователя)
+        // Получаем всех пользователей с номерами телефонов (исключая указанного пользователя)
         $exclude_condition = $exclude_username ? "AND Username != '$exclude_username'" : '';
-        $result = $conn->query("SELECT UserID, Username, Role FROM users WHERE Status = 'active' $exclude_condition");
+        $result = $conn->query("SELECT UserID, Username, PhoneNumber, Role FROM users WHERE Status = 'active' $exclude_condition");
         $synced_count = 0;
+        $updated_count = 0;
+        $skipped_count = 0;
         $errors = [];
         
         while ($user = $result->fetch_assoc()) {
+            // Пропускаем пользователей без номера телефона
+            if (empty($user['PhoneNumber']) || trim($user['PhoneNumber']) === '') {
+                $skipped_count++;
+                continue;
+            }
+            
+            // Нормализуем номер телефона (убираем пробелы, дефисы и т.д.)
+            $phone = preg_replace('/[^0-9+]/', '', trim($user['PhoneNumber']));
+            
+            // Если номер не начинается с +, добавляем +7 для российских номеров
+            if (!empty($phone) && $phone[0] !== '+') {
+                // Если номер начинается с 7 или 8, заменяем на +7
+                if (preg_match('/^[78]/', $phone)) {
+                    $phone = '+7' . substr($phone, 1);
+                } else {
+                    $phone = '+7' . $phone;
+                }
+            }
+            
             // Проверяем, есть ли уже такой получатель
-            $check_stmt = $conn->prepare("SELECT RecipientID FROM recipients WHERE FullName = ?");
+            $check_stmt = $conn->prepare("SELECT RecipientID, PhoneNumber FROM recipients WHERE FullName = ?");
             $check_stmt->bind_param("s", $user['Username']);
             $check_stmt->execute();
             $existing = $check_stmt->get_result()->fetch_assoc();
             $check_stmt->close();
             
+            // Определяем группу на основе роли
+            $group_id = ($user['Role'] === 'admin') ? 4 : 1; // 4 = Руководство, 1 = Сотрудники
+            
             if (!$existing) {
-                // Создаем номер телефона на основе UserID (заглушка)
-                $phone = '7' . str_pad($user['UserID'], 10, '0', STR_PAD_LEFT);
-                
-                // Определяем группу на основе роли
-                $group_id = ($user['Role'] === 'admin') ? 4 : 1; // 4 = Руководство, 1 = Сотрудники
-                
-                // Добавляем пользователя в recipients
+                // Добавляем нового получателя
                 $insert_stmt = $conn->prepare("INSERT INTO recipients (PhoneNumber, FullName, GroupID) VALUES (?, ?, ?)");
                 $insert_stmt->bind_param("ssi", $phone, $user['Username'], $group_id);
                 
@@ -639,16 +726,37 @@ function syncUsersToRecipients($exclude_username = '') {
                     $errors[] = "Ошибка добавления пользователя {$user['Username']}: " . $insert_stmt->error;
                 }
                 $insert_stmt->close();
+            } else {
+                // Обновляем существующего получателя, если номер телефона изменился
+                if ($existing['PhoneNumber'] !== $phone) {
+                    $update_stmt = $conn->prepare("UPDATE recipients SET PhoneNumber = ?, GroupID = ? WHERE RecipientID = ?");
+                    $update_stmt->bind_param("sii", $phone, $group_id, $existing['RecipientID']);
+                    
+                    if ($update_stmt->execute()) {
+                        $updated_count++;
+                    } else {
+                        $errors[] = "Ошибка обновления пользователя {$user['Username']}: " . $update_stmt->error;
+                    }
+                    $update_stmt->close();
+                }
             }
         }
         
         $conn->commit();
         $conn->close();
         
+        $message = "Синхронизация завершена! Добавлено: $synced_count, обновлено: $updated_count";
+        if ($skipped_count > 0) {
+            $message .= ", пропущено (без номера телефона): $skipped_count";
+        }
+        
         return [
             'success' => true,
             'synced_count' => $synced_count,
-            'errors' => $errors
+            'updated_count' => $updated_count,
+            'skipped_count' => $skipped_count,
+            'errors' => $errors,
+            'message' => $message
         ];
         
     } catch (Exception $e) {
@@ -664,52 +772,84 @@ function syncUsersToRecipients($exclude_username = '') {
 }
 
 function sendUserMessage($data) {
-    if (!isset($data['recipient_id']) || !isset($data['message_text'])) {
-        return ['success' => false, 'message' => 'Отсутствуют обязательные параметры'];
-    }
-    
-    $recipient_id = $data['recipient_id'];
-    $message_text = $data['message_text'];
+    $recipients = $data['recipients'] ?? ($data['recipient_id'] ?? []);
+    if (!is_array($recipients)) { $recipients = [$recipients]; }
+    $recipients = array_filter(array_map('intval', $recipients));
+    $message_text = $data['message_text'] ?? '';
     $user = getCurrentUser();
+
+    if (empty($recipients)) {
+        return ['success' => false, 'message' => 'Выберите получателей'];
+    }
+    if (trim($message_text) === '') {
+        return ['success' => false, 'message' => 'Текст сообщения не может быть пустым'];
+    }
     
     try {
         $conn = connectToDatabase();
         $conn->begin_transaction();
         
-        // Создаем таблицы если их нет
         ensureUserMessagesTable($conn);
 
-        // Добавляем сообщение в таблицу messages
         $stmt = $conn->prepare("INSERT INTO messages (Text) VALUES (?)");
         $stmt->bind_param("s", $message_text);
         $stmt->execute();
         $messageId = $conn->insert_id;
         $stmt->close();
 
-        // Добавляем запись в messagelogs
-        $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, 'sent', NOW())");
-        $stmt->bind_param("ii", $messageId, $recipient_id);
-        $stmt->execute();
-        $stmt->close();
-        
-        // Добавляем запись в user_messages для отслеживания
-        $sender_id = $user['UserID'] ?? 0;
-        $stmt = $conn->prepare("INSERT INTO user_messages (SenderID, MessageID, RecipientID) VALUES (?, ?, ?)");
-        $stmt->bind_param("iii", $sender_id, $messageId, $recipient_id);
-        $ok = $stmt->execute();
-        $stmt->close();
+        $sender_id = intval($user['id'] ?? 0);
+        $preview = mb_substr((string)$message_text, 0, 120);
+        $sent = 0; $errors = 0;
 
-        if ($ok) {
-            $conn->commit();
-            $preview = mb_substr((string)$message_text, 0, 120);
-            logSystemAction('user', 'sms_send', 'SMS: ' . $preview . '; получатель ID: ' . $recipient_id);
-            $conn->close();
-            return ['success' => true, 'message' => 'SMS сообщение отправлено успешно!'];
-        } else {
-            $conn->rollback();
-            $conn->close();
-            return ['success' => false, 'message' => 'Не удалось отправить SMS сообщение'];
+        foreach ($recipients as $recipient_id) {
+            $stmt = $conn->prepare("SELECT PhoneNumber FROM recipients WHERE RecipientID = ?");
+            $stmt->bind_param("i", $recipient_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $recipient = $result->fetch_assoc();
+            $stmt->close();
+            
+            if (!$recipient || empty($recipient['PhoneNumber'])) {
+                $errors++;
+                continue;
+            }
+            
+            // Добавляем название отправителя в конец сообщения
+            $companyName = getSelectedCompanyName();
+            $messageWithSender = $message_text;
+            if (!empty($companyName)) {
+                $senderSuffix = ' ' . $companyName;
+                // Проверяем, не превышает ли сообщение лимит в 160 символов
+                if (mb_strlen($message_text . $senderSuffix) <= 160) {
+                    $messageWithSender = $message_text . $senderSuffix;
+                }
+            }
+            
+            $smsResult = sendSms($recipient['PhoneNumber'], $messageWithSender);
+            $smsStatus = $smsResult['success'] ? 'Доставлено' : ($smsResult['status'] ?? 'Ошибка');
+
+            $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, ?, NOW())");
+            $stmt->bind_param("iis", $messageId, $recipient_id, $smsStatus);
+            $stmt->execute();
+            $stmt->close();
+            
+            $stmt = $conn->prepare("INSERT INTO user_messages (SenderID, MessageID, RecipientID) VALUES (?, ?, ?)");
+            $stmt->bind_param("iii", $sender_id, $messageId, $recipient_id);
+            $ok = $stmt->execute();
+            $stmt->close();
+
+            if ($ok && $smsResult['success']) {
+                $sent++;
+            } else {
+                $errors++;
+            }
         }
+
+        $conn->commit();
+        $logMessage = 'SMS: ' . $preview . '; получателей: ' . count($recipients) . '; отправлено: ' . $sent . '; ошибки: ' . $errors;
+        logSystemAction('user', 'sms_send', $logMessage);
+        $conn->close();
+        return ['success' => true, 'message' => "Отправлено: $sent, ошибок: $errors"];
     } catch (Exception $e) {
         if (isset($conn)) {
             $conn->rollback();
@@ -723,12 +863,13 @@ function sendUserMessage($data) {
 function fetchUserMessages() {
     $conn = connectToDatabase();
     $user = getCurrentUser();
-    $current_user_id = $user['UserID'] ?? 0;
+    // Исправляем: getCurrentUser() возвращает 'id', а не 'UserID'
+    $current_user_id = intval($user['id'] ?? 0);
     $current_username = $user['username'] ?? '';
     
-    // Получаем отправленные сообщения
+    // Получаем отправленные сообщения (только для текущего пользователя)
     $sent_messages = [];
-    $result = $conn->query("
+    $stmt = $conn->prepare("
         SELECT um.UserMessageID, um.SentDate, um.ReadStatus, um.ReadDate,
                m.Text, m.MessageID,
                r.FullName as ContactName, r.PhoneNumber,
@@ -742,18 +883,21 @@ function fetchUserMessages() {
         LEFT JOIN groups g ON r.GroupID = g.GroupID
         LEFT JOIN users u_sender ON um.SenderID = u_sender.UserID
         LEFT JOIN users u_recipient ON r.FullName = u_recipient.Username
-        WHERE um.SenderID = $current_user_id
+        WHERE um.SenderID = ?
         ORDER BY um.SentDate DESC 
         LIMIT 15
     ");
-    
+    $stmt->bind_param("i", $current_user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
         $sent_messages[] = $row;
     }
+    $stmt->close();
     
-    // Получаем полученные сообщения
+    // Получаем полученные сообщения (только для текущего пользователя)
     $received_messages = [];
-    $result = $conn->query("
+    $stmt = $conn->prepare("
         SELECT um.UserMessageID, um.SentDate, um.ReadStatus, um.ReadDate,
                m.Text, m.MessageID,
                u_sender.Username as ContactName, r.PhoneNumber,
@@ -766,14 +910,17 @@ function fetchUserMessages() {
         JOIN recipients r ON um.RecipientID = r.RecipientID
         LEFT JOIN groups g ON r.GroupID = g.GroupID
         LEFT JOIN users u_sender ON um.SenderID = u_sender.UserID
-        WHERE r.FullName = '$current_username'
+        WHERE r.FullName = ?
         ORDER BY um.SentDate DESC 
         LIMIT 15
     ");
-    
+    $stmt->bind_param("s", $current_username);
+    $stmt->execute();
+    $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
         $received_messages[] = $row;
     }
+    $stmt->close();
     
     $conn->close();
     
@@ -796,7 +943,7 @@ function updateMessageReadStatus($data) {
         
         // Проверяем, что пользователь имеет право изменять статус этого сообщения
         $user = getCurrentUser();
-        $current_user_id = $user['UserID'] ?? 0;
+        $current_user_id = intval($user['id'] ?? 0);
         $current_username = $user['username'] ?? '';
         
         // Проверяем, является ли пользователь отправителем или получателем сообщения
@@ -841,6 +988,215 @@ function updateMessageReadStatus($data) {
         return ['success' => false, 'message' => 'Ошибка обновления статуса: ' . $e->getMessage()];
     }
 }
+
+// Функции для работы с шаблонами SMS
+function ensureSmsTemplatesTable($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS sms_templates (
+        TemplateID INT AUTO_INCREMENT PRIMARY KEY,
+        CompanyID INT NOT NULL,
+        TemplateName VARCHAR(255) NOT NULL,
+        TemplateText TEXT NOT NULL,
+        CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (CompanyID) REFERENCES companies(CompanyID) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function addSmsTemplate($data) {
+    try {
+        $companyId = getSelectedCompany();
+        if (!$companyId) {
+            return ['success' => false, 'message' => 'Предприятие не выбрано'];
+        }
+        
+        $templateName = trim($data['template_name'] ?? '');
+        $templateText = trim($data['template_text'] ?? '');
+        
+        if (empty($templateName)) {
+            return ['success' => false, 'message' => 'Введите название шаблона'];
+        }
+        
+        if (empty($templateText)) {
+            return ['success' => false, 'message' => 'Введите текст шаблона'];
+        }
+        
+        $conn = connectToDatabase();
+        ensureSmsTemplatesTable($conn);
+        
+        $stmt = $conn->prepare("INSERT INTO sms_templates (CompanyID, TemplateName, TemplateText) VALUES (?, ?, ?)");
+        $stmt->bind_param("iss", $companyId, $templateName, $templateText);
+        
+        if ($stmt->execute()) {
+            logSystemAction('sms_templates', 'add', 'Добавлен шаблон SMS: ' . $templateName);
+            $stmt->close();
+            $conn->close();
+            return ['success' => true, 'message' => 'Шаблон успешно добавлен'];
+        } else {
+            $stmt->close();
+            $conn->close();
+            return ['success' => false, 'message' => 'Ошибка при добавлении шаблона'];
+        }
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()];
+    }
+}
+
+function updateSmsTemplate($data) {
+    try {
+        $templateId = intval($data['template_id'] ?? 0);
+        $companyId = getSelectedCompany();
+        
+        if ($templateId <= 0) {
+            return ['success' => false, 'message' => 'Некорректный ID шаблона'];
+        }
+        
+        if (!$companyId) {
+            return ['success' => false, 'message' => 'Предприятие не выбрано'];
+        }
+        
+        $templateName = trim($data['template_name'] ?? '');
+        $templateText = trim($data['template_text'] ?? '');
+        
+        if (empty($templateName)) {
+            return ['success' => false, 'message' => 'Введите название шаблона'];
+        }
+        
+        if (empty($templateText)) {
+            return ['success' => false, 'message' => 'Введите текст шаблона'];
+        }
+        
+        $conn = connectToDatabase();
+        ensureSmsTemplatesTable($conn);
+        
+        // Проверяем, что шаблон принадлежит выбранному предприятию
+        $check_stmt = $conn->prepare("SELECT TemplateID FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
+        $check_stmt->bind_param("ii", $templateId, $companyId);
+        $check_stmt->execute();
+        $exists = $check_stmt->get_result()->fetch_assoc();
+        $check_stmt->close();
+        
+        if (!$exists) {
+            $conn->close();
+            return ['success' => false, 'message' => 'Шаблон не найден или не принадлежит выбранному предприятию'];
+        }
+        
+        $stmt = $conn->prepare("UPDATE sms_templates SET TemplateName = ?, TemplateText = ? WHERE TemplateID = ? AND CompanyID = ?");
+        $stmt->bind_param("ssii", $templateName, $templateText, $templateId, $companyId);
+        
+        if ($stmt->execute()) {
+            logSystemAction('sms_templates', 'update', 'Обновлен шаблон SMS ID=' . $templateId . ': ' . $templateName);
+            $stmt->close();
+            $conn->close();
+            return ['success' => true, 'message' => 'Шаблон успешно обновлен'];
+        } else {
+            $stmt->close();
+            $conn->close();
+            return ['success' => false, 'message' => 'Ошибка при обновлении шаблона'];
+        }
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()];
+    }
+}
+
+function deleteSmsTemplate($data) {
+    try {
+        $templateId = intval($data['id'] ?? 0);
+        $companyId = getSelectedCompany();
+        
+        if ($templateId <= 0) {
+            return ['success' => false, 'message' => 'Некорректный ID шаблона'];
+        }
+        
+        if (!$companyId) {
+            return ['success' => false, 'message' => 'Предприятие не выбрано'];
+        }
+        
+        $conn = connectToDatabase();
+        ensureSmsTemplatesTable($conn);
+        
+        // Проверяем, что шаблон принадлежит выбранному предприятию
+        $check_stmt = $conn->prepare("SELECT TemplateName FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
+        $check_stmt->bind_param("ii", $templateId, $companyId);
+        $check_stmt->execute();
+        $template = $check_stmt->get_result()->fetch_assoc();
+        $check_stmt->close();
+        
+        if (!$template) {
+            $conn->close();
+            return ['success' => false, 'message' => 'Шаблон не найден или не принадлежит выбранному предприятию'];
+        }
+        
+        $stmt = $conn->prepare("DELETE FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
+        $stmt->bind_param("ii", $templateId, $companyId);
+        
+        if ($stmt->execute()) {
+            logSystemAction('sms_templates', 'delete', 'Удален шаблон SMS ID=' . $templateId . ': ' . ($template['TemplateName'] ?? ''));
+            $stmt->close();
+            $conn->close();
+            return ['success' => true, 'message' => 'Шаблон успешно удален'];
+        } else {
+            $stmt->close();
+            $conn->close();
+            return ['success' => false, 'message' => 'Ошибка при удалении шаблона'];
+        }
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()];
+    }
+}
+
+function fetchSmsTemplates() {
+    try {
+        $companyId = getSelectedCompany();
+        if (!$companyId) {
+            return [];
+        }
+        
+        $conn = connectToDatabase();
+        ensureSmsTemplatesTable($conn);
+        
+        $stmt = $conn->prepare("SELECT TemplateID, TemplateName, TemplateText, CreatedAt, UpdatedAt FROM sms_templates WHERE CompanyID = ? ORDER BY TemplateID DESC");
+        $stmt->bind_param("i", $companyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $templates = [];
+        while ($row = $result->fetch_assoc()) {
+            $templates[] = $row;
+        }
+        
+        $stmt->close();
+        $conn->close();
+        
+        return $templates;
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+function getSmsTemplateById($id) {
+    try {
+        $companyId = getSelectedCompany();
+        if (!$companyId) {
+            return null;
+        }
+        
+        $conn = connectToDatabase();
+        ensureSmsTemplatesTable($conn);
+        
+        $stmt = $conn->prepare("SELECT TemplateID, TemplateName, TemplateText, CreatedAt, UpdatedAt FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
+        $stmt->bind_param("ii", $id, $companyId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $template = $result->fetch_assoc();
+        
+        $stmt->close();
+        $conn->close();
+        
+        return $template;
+    } catch (Exception $e) {
+        return null;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -858,7 +1214,7 @@ function updateMessageReadStatus($data) {
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: url("fon.gif") center/cover fixed no-repeat, #eef2f7;
             min-height: 100vh;
             color: #333;
         }
@@ -1401,18 +1757,66 @@ function updateMessageReadStatus($data) {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
         }
+
+        /* Стили для шаблонов в модальном окне */
+        .template-item {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .template-item:hover {
+            background: #e3f2fd;
+            border-color: #4CAF50;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.2);
+        }
+
+        .template-item:active {
+            transform: translateY(0);
+        }
+
+        .template-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .template-name::before {
+            content: "📝";
+            font-size: 20px;
+        }
+
+        .template-text {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+            word-wrap: break-word;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border-left: 3px solid #4CAF50;
+        }
+
+        .template-empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 16px;
+        }
     </style>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="app-shell">
     <?php include 'navigation.php'; ?>
-    <div class="page-header">
-        <div class="header-content">
-            <h1>🔧 Панель администратора</h1>
-            <p>Управление системой СМС информирования</p>
-        </div>
-    </div>
-
     <div class="container">
         <!-- Статистика -->
         <div class="card">
@@ -1437,7 +1841,7 @@ function updateMessageReadStatus($data) {
             </div>
         </div>
 
-        <div class="main-content">
+        <div class="main-content" id="mainContentContainer">
 
             <!-- Управление данными -->
             <div class="card">
@@ -1462,14 +1866,17 @@ function updateMessageReadStatus($data) {
                         <i class="fas fa-user-shield"></i> Пользователи
                     </button>
                     <button class="tab" onclick="showTab('user_messages')">
-                        <i class="fas fa-comments"></i> Мои сообщения
+                        <i class="fas fa-comments"></i> Отправление СМС
+                    </button>
+                    <button class="tab" onclick="showTab('sms_templates')">
+                        <i class="fas fa-file-alt"></i> Создание шаблона SMS
                     </button>
                 </div>
 
                 
 
                 <!-- Вкладка групп -->
-                <div class="tab-content" id="groupsTab">
+                <div class="tab-content active" id="groupsTab">
                     <h3>Добавить группу</h3>
                     <div class="form-group">
                         <input type="text" id="newGroupName" placeholder="Название группы">
@@ -1486,7 +1893,19 @@ function updateMessageReadStatus($data) {
 
                 <!-- Вкладка сообщений -->
                 <div class="tab-content" id="messagesTab">
-                    <h3>История сообщений</h3>
+                    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;">
+                        <h3>История сообщений</h3>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <select id="messagesRange">
+                                <option value="all">Все</option>
+                                <option value="day">24 часа</option>
+                                <option value="week">7 дней</option>
+                                <option value="month">30 дней</option>
+                                <option value="year">365 дней</option>
+                            </select>
+                            <button class="btn btn-danger" type="button" onclick="clearMessageHistory()"><i class="fas fa-trash"></i> Очистить</button>
+                        </div>
+                    </div>
                     <div id="messagesTable">
                         <div class="loading">Загрузка сообщений...</div>
                     </div>
@@ -1494,7 +1913,20 @@ function updateMessageReadStatus($data) {
 
                 <!-- Вкладка журнала системы -->
                 <div class="tab-content" id="systemlogTab">
-                    <h3>Журнал действий системы</h3>
+                    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;">
+                        <h3>Журнал действий системы</h3>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <select id="logRangeSelect">
+                                <option value="all">Все</option>
+                                <option value="day">24 часа</option>
+                                <option value="week">7 дней</option>
+                                <option value="month">30 дней</option>
+                                <option value="year">365 дней</option>
+                            </select>
+                            <button class="btn" type="button" onclick="loadSystemLogs()"><i class="fas fa-sync-alt"></i> Обновить журнал</button>
+                            <button class="btn btn-danger" type="button" onclick="clearSystemLogs()"><i class="fas fa-trash"></i> Очистить</button>
+                        </div>
+                    </div>
                     <div id="systemLogTable">
                         <div class="loading">Загрузка журнала...</div>
                     </div>
@@ -1518,7 +1950,11 @@ function updateMessageReadStatus($data) {
                 <div class="tab-content" id="importTab">
                     <h3>Импорт данных из JSON бекапа</h3>
                     <div class="form-group">
-                        <input type="file" id="importFile" accept="application/json">
+                        <input type="file" id="importFile" accept="application/json" style="display: none;">
+                        <button type="button" class="btn" onclick="document.getElementById('importFile').click()">
+                            <i class="fas fa-folder-open"></i> Выберите файл
+                        </button>
+                        <span id="selectedFileName" style="margin-left: 10px; color: #666; font-size: 14px;"></span>
                     </div>
                     <div class="form-group">
                         <label>Режим импорта</label>
@@ -1559,6 +1995,12 @@ function updateMessageReadStatus($data) {
                             <option value="admin">Администратор</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <input type="text" id="newUserPhone" placeholder="Номер телефона (опционально): +7XXXXXXXXXX или 8XXXXXXXXXX">
+                        <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                            Номер будет автоматически нормализован. Формат: +7XXXXXXXXXX
+                        </small>
+                    </div>
                     <button class="btn" onclick="addUser()">
                         <i class="fas fa-user-plus"></i> Добавить пользователя
                     </button>
@@ -1571,57 +2013,95 @@ function updateMessageReadStatus($data) {
 
                 <!-- Вкладка пользовательских сообщений -->
                 <div class="tab-content" id="user_messagesTab">
-                    <!-- Синхронизация пользователей -->
-                    <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                        <h3>🔄 Синхронизация пользователей</h3>
-                        <p style="color: #666; margin-bottom: 15px;">
-                            Синхронизируйте пользователей системы с получателями SMS для возможности отправки им сообщений.
-                        </p>
-                        <button class="btn" onclick="syncUsers()">
-                            <i class="fas fa-sync"></i> Синхронизировать пользователей
-                        </button>
-                    </div>
-
                     <!-- Отправка личного сообщения -->
                     <div style="margin-bottom: 30px;">
                         <h3>📱 Отправка личного сообщения</h3>
                         <div class="form-group">
-                            <label for="userMessageText">Текст сообщения:</label>
-                            <textarea id="userMessageText" placeholder="Введите текст сообщения..." maxlength="160"></textarea>
-                            <div class="char-counter" id="userCharCounter">0/160 символов</div>
+                            <label for="adminRecipientSearch">Поиск получателя</label>
+                            <input type="search" id="adminRecipientSearch" placeholder="Поиск по ФИО или номеру">
                         </div>
                         <div class="form-group">
-                            <label for="userRecipientSelect">Выберите получателя:</label>
-                            <select id="userRecipientSelect">
-                                <option value="">-- Выберите получателя --</option>
+                            <label for="adminFilterGroup">Фильтр по группе</label>
+                            <select id="adminFilterGroup">
+                                <option value="">Все группы</option>
+                                <?php foreach ($groups as $group): ?>
+                                    <option value="<?php echo htmlspecialchars($group['GroupName']); ?>">
+                                        <?php echo htmlspecialchars($group['GroupName']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <div class="toolbar" style="margin-top: 8px;">
+                                <div class="pill">📱 Выбрано: <span id="adminSelectedCount">0</span></div>
+                                <div class="actions">
+                                    <button type="button" class="btn btn-secondary" id="adminSelectAllBtn">Выбрать всех</button>
+                                    <button type="button" class="btn btn-ghost" id="adminClearSelectionBtn">Очистить</button>
+                                </div>
+                            </div>
+                            <div class="recipient-list" id="adminRecipientsList" style="max-height: 320px; overflow-y: auto; margin-top:10px;">
+                                <div class="loading">Загрузка получателей...</div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Шаблоны сообщений:</label>
+                            <button type="button" class="btn btn-secondary" onclick="openTemplatesModal()" style="width: 100%; margin-bottom: 5px;">
+                                <i class="fas fa-file-alt"></i> Выбрать шаблон
+                            </button>
+                            <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                                При выборе шаблона его текст автоматически подставится в поле сообщения. Вы можете отредактировать текст перед отправкой.
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label for="userMessageText">Текст сообщения:</label>
+                            <textarea id="userMessageText" placeholder="Введите текст сообщения..." maxlength="160" disabled></textarea>
+                            <div class="char-counter" id="userCharCounter">0/160 символов</div>
+                        </div>
                         <button class="btn" onclick="sendUserMessage()">
-                            <i class="fas fa-paper-plane"></i> Отправить сообщение
+                            <i class="fas fa-paper-plane"></i> Отправить СМС
                         </button>
                         <div class="status-message" id="statusMessage"></div>
                     </div>
 
-                    <!-- История сообщений -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                        <!-- Полученные сообщения -->
-                        <div>
-                            <h3>📥 Полученные сообщения</h3>
-                            <div id="receivedMessagesList" style="max-height: 400px; overflow-y: auto;">
-                                <div class="loading">Загрузка полученных сообщений...</div>
-                            </div>
-                        </div>
+                </div>
 
-                        <!-- Отправленные сообщения -->
-                        <div>
-                            <h3>📤 Отправленные сообщения</h3>
-                            <div id="sentMessagesList" style="max-height: 400px; overflow-y: auto;">
-                                <div class="loading">Загрузка отправленных сообщений...</div>
-                            </div>
-                        </div>
+                <!-- Вкладка шаблонов SMS -->
+                <div class="tab-content" id="sms_templatesTab">
+                    <h3>Создание шаблона SMS</h3>
+                    <div class="form-group">
+                        <label for="templateName">Название шаблона:</label>
+                        <input type="text" id="templateName" placeholder="Введите название шаблона">
+                    </div>
+                    <div class="form-group">
+                        <label for="templateText">Текст шаблона:</label>
+                        <textarea id="templateText" placeholder="Введите текст шаблона SMS..." rows="6"></textarea>
+                        <div class="char-counter" id="templateCharCounter">0 символов</div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn" onclick="saveSmsTemplate()" id="saveTemplateBtn">
+                            <i class="fas fa-save"></i> Сохранить шаблон
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearTemplateForm()" id="clearTemplateBtn" style="display: none;">
+                            <i class="fas fa-times"></i> Отмена
+                        </button>
+                    </div>
+                    <div class="status-message" id="templateStatusMessage"></div>
+                    
+                    <h3 style="margin-top: 40px;">Список шаблонов</h3>
+                    <div id="smsTemplatesTable">
+                        <div class="loading">Загрузка шаблонов...</div>
                     </div>
                 </div>
             </div>
+            
+            <!-- Правая колонка для отправленных сообщений -->
+            <div class="card" id="sentMessagesSidebar" style="display: none;">
+                <h2><i class="fas fa-paper-plane"></i> Отправленные сообщения</h2>
+                <div id="sentMessagesList" style="max-height: 600px; overflow-y: auto;">
+                    <div class="loading">Загрузка отправленных сообщений...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Модальное окно для просмотра сообщения -->
@@ -1645,12 +2125,8 @@ function updateMessageReadStatus($data) {
                         <span id="modalContact" class="detail-value"></span>
                     </div>
                     <div class="detail-row">
-                        <span class="detail-label">📊 Статус:</span>
-                        <span id="modalStatus" class="detail-value"></span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">📅 Дата прочтения:</span>
-                        <span id="modalReadDate" class="detail-value"></span>
+                        <span class="detail-label">📞 Номер телефона:</span>
+                        <span id="modalPhone" class="detail-value"></span>
                     </div>
                 </div>
             </div>
@@ -1689,14 +2165,40 @@ function updateMessageReadStatus($data) {
                         <label for="editStatus">Статус:</label>
                         <select id="editStatus">
                             <option value="active">Активный</option>
-                            <option value="inactive">Неактивный</option>
+                            <option value="blocked">Заблокирован</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPhoneNumber">Номер телефона:</label>
+                        <input type="text" id="editPhoneNumber" placeholder="+7XXXXXXXXXX или 8XXXXXXXXXX">
+                        <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                            Номер будет автоматически нормализован. Формат: +7XXXXXXXXXX
+                        </small>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeEditUserModal()">Отмена</button>
+                <button class="btn btn-danger" onclick="deleteUserFromModal()">Удалить</button>
                 <button class="btn" onclick="saveUserChanges()">Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для выбора шаблонов сообщений -->
+    <div id="templatesModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Выберите шаблон сообщения</h3>
+                <span class="close" onclick="closeTemplatesModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="templatesList" style="max-height: 500px; overflow-y: auto;">
+                    <div class="loading">Загрузка шаблонов...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeTemplatesModal()">Закрыть</button>
             </div>
         </div>
     </div>
@@ -1706,6 +2208,10 @@ function updateMessageReadStatus($data) {
         let messages = [];
         let users = [];
         let recipients = [];
+        let systemLogsData = [];
+        let messageHistoryData = [];
+        let smsTemplates = [];
+        let editingTemplateId = null;
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
@@ -1717,22 +2223,51 @@ function updateMessageReadStatus($data) {
             loadSystemLogs();
             loadBackups();
             loadUserMessages();
+            loadSmsTemplates();
             
+            // Проверяем активную вкладку при загрузке и управляем видимостью блока сообщений
+            const activeTab = document.querySelector('.tab.active');
+            if (activeTab && activeTab.getAttribute('onclick') && activeTab.getAttribute('onclick').includes("'user_messages'")) {
+                const sentMessagesSidebar = document.getElementById('sentMessagesSidebar');
+                const mainContent = document.getElementById('mainContentContainer');
+                if (sentMessagesSidebar) {
+                    sentMessagesSidebar.style.display = 'block';
+                }
+                if (mainContent) {
+                    mainContent.style.gridTemplateColumns = '1fr 1fr';
+                }
+            }
 
             // Счетчик символов для пользовательских сообщений
-            document.getElementById('userMessageText').addEventListener('input', function() {
-                const length = this.value.length;
-                const counter = document.getElementById('userCharCounter');
-                counter.textContent = `${length}/160 символов`;
-                
-                if (length > 140) {
-                    counter.className = 'char-counter warning';
-                } else if (length > 160) {
-                    counter.className = 'char-counter error';
-                } else {
-                    counter.className = 'char-counter';
-                }
-            });
+            const userMessageTextEl = document.getElementById('userMessageText');
+            if (userMessageTextEl) {
+                userMessageTextEl.addEventListener('input', function() {
+                    const length = this.value.length;
+                    const counter = document.getElementById('userCharCounter');
+                    if (counter) {
+                        counter.textContent = `${length}/160 символов`;
+                        if (length > 140) {
+                            counter.className = 'char-counter warning';
+                        } else if (length > 160) {
+                            counter.className = 'char-counter error';
+                        } else {
+                            counter.className = 'char-counter';
+                        }
+                    }
+                });
+            }
+
+            // Счетчик символов для шаблонов SMS
+            const templateTextEl = document.getElementById('templateText');
+            if (templateTextEl) {
+                templateTextEl.addEventListener('input', function() {
+                    const length = this.value.length;
+                    const counter = document.getElementById('templateCharCounter');
+                    if (counter) {
+                        counter.textContent = `${length} символов`;
+                    }
+                });
+            }
 
             // Обработчики для модального окна сообщений
             const modal = document.getElementById('messageModal');
@@ -1751,15 +2286,32 @@ function updateMessageReadStatus($data) {
                 if (event.target == document.getElementById('editUserModal')) {
                     closeEditUserModal();
                 }
+                if (event.target == document.getElementById('templatesModal')) {
+                    closeTemplatesModal();
+                }
             }
-            
+
             // Закрытие по клавише Escape
             document.addEventListener('keydown', function(event) {
                 if (event.key === 'Escape') {
                     closeModal();
                     closeEditUserModal();
+                    closeTemplatesModal();
                 }
             });
+
+            // Обработчик выбора файла для импорта
+            const importFileInput = document.getElementById('importFile');
+            const selectedFileName = document.getElementById('selectedFileName');
+            if (importFileInput && selectedFileName) {
+                importFileInput.addEventListener('change', function() {
+                    if (this.files && this.files.length > 0) {
+                        selectedFileName.textContent = 'Выбран файл: ' + this.files[0].name;
+                    } else {
+                        selectedFileName.textContent = '';
+                    }
+                });
+            }
         });
 
 
@@ -1821,8 +2373,8 @@ function updateMessageReadStatus($data) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    messages = data.data;
-                    displayMessagesTable();
+                    messageHistoryData = data.data || [];
+                    applyMessagesFilter();
                 }
             })
             .catch(error => {
@@ -1857,13 +2409,20 @@ function updateMessageReadStatus($data) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    displaySystemLogTable(data.data || []);
+                    systemLogsData = data.data || [];
+                    applySystemLogFilter();
                 }
             })
             .catch(error => {
                 const container = document.getElementById('systemLogTable');
                 if (container) container.innerHTML = '<p style="color:#c00">Ошибка загрузки журнала: ' + (error.message || error) + '</p>';
             });
+        }
+
+        function applySystemLogFilter() {
+            const range = document.getElementById('logRangeSelect')?.value || 'all';
+            const filtered = filterByRange(systemLogsData, 'CreatedAt', range);
+            displaySystemLogTable(filtered);
         }
 
         function displaySystemLogTable(items) {
@@ -1874,7 +2433,7 @@ function updateMessageReadStatus($data) {
                 container.innerHTML = '<p style="text-align: center; color: #666;">Нет записей журнала</p>';
                 return;
             }
-            let table = '<table class="data-table"><thead><tr><th>Время</th><th>Категория</th><th>Действие</th><th>Пользователь</th><th>IP</th><th>Подробности</th></tr></thead><tbody>';
+            let table = '<table class="data-table"><thead><tr><th>Время</th><th>Категория</th><th>Действие</th><th>Пользователь</th><th>Подробности</th></tr></thead><tbody>';
             items.forEach(row => {
                 table += `
                     <tr>
@@ -1882,7 +2441,6 @@ function updateMessageReadStatus($data) {
                         <td>${row.Category || ''}</td>
                         <td>${row.Action || ''}</td>
                         <td>${row.PerformedBy || ''}</td>
-                        <td>${row.IPAddress || ''}</td>
                         <td>${row.Details || ''}</td>
                     </tr>
                 `;
@@ -1991,6 +2549,12 @@ function updateMessageReadStatus($data) {
             .then(data => {
                 showImportStatus(data.message || '', data.success ? 'success' : 'error');
                 if (data.success) {
+                    // Очищаем выбранный файл после успешного импорта
+                    const fileInput = document.getElementById('importFile');
+                    const fileNameSpan = document.getElementById('selectedFileName');
+                    if (fileInput) fileInput.value = '';
+                    if (fileNameSpan) fileNameSpan.textContent = '';
+                    
                     loadRecipients();
                     loadGroups();
                     loadMessages();
@@ -2044,6 +2608,7 @@ function updateMessageReadStatus($data) {
                 if (data.success) {
                     recipients = data.data;
                     updateUserRecipientSelect();
+                    renderAdminRecipientsList();
                 }
             })
             .catch(error => {
@@ -2060,15 +2625,17 @@ function updateMessageReadStatus($data) {
                 return;
             }
 
-            let table = '<table class="data-table"><thead><tr><th>Имя</th><th>Роль</th><th>Статус</th><th>Создан</th><th>Действия</th></tr></thead><tbody>';
+            let table = '<table class="data-table"><thead><tr><th>Имя</th><th>Телефон</th><th>Роль</th><th>Статус</th><th>Создан</th><th>Действия</th></tr></thead><tbody>';
             users.forEach(u => {
+                const phone = u.PhoneNumber || '—';
                 table += `
                     <tr>
                         <td>${u.Username}</td>
+                        <td>${phone}</td>
                         <td>${u.Role}</td>
                         <td>${u.Status}</td>
                         <td>${u.CreatedAt || ''}</td>
-                        <td><button class="btn" onclick="editUser(${u.UserID}, '${u.Username}', '${u.Role}', '${u.Status}')" style="padding: 5px 10px; font-size: 12px;">Редактировать</button></td>
+                        <td><button class="btn" onclick="editUser(${u.UserID}, '${u.Username}', '${u.Role}', '${u.Status}', '${(u.PhoneNumber || '').replace(/'/g, "\\'")}')" style="padding: 5px 10px; font-size: 12px;">Редактировать</button></td>
                     </tr>
                 `;
             });
@@ -2080,6 +2647,7 @@ function updateMessageReadStatus($data) {
             const username = document.getElementById('newUsername').value.trim();
             const password = document.getElementById('newUserPassword').value.trim();
             const role = document.getElementById('newUserRole').value;
+            const phoneNumber = document.getElementById('newUserPhone').value.trim();
 
             if (!username || !password) {
                 showStatus('Введите имя пользователя и пароль', 'error');
@@ -2091,6 +2659,7 @@ function updateMessageReadStatus($data) {
             formData.append('username', username);
             formData.append('password', password);
             formData.append('role', role);
+            formData.append('phoneNumber', phoneNumber);
 
             fetch('admin.php', {
                 method: 'POST',
@@ -2103,6 +2672,7 @@ function updateMessageReadStatus($data) {
                     document.getElementById('newUsername').value = '';
                     document.getElementById('newUserPassword').value = '';
                     document.getElementById('newUserRole').value = 'user';
+                    document.getElementById('newUserPhone').value = '';
                     loadUsers();
                 }
             })
@@ -2112,11 +2682,12 @@ function updateMessageReadStatus($data) {
         }
 
         // Функции для редактирования пользователей
-        function editUser(id, username, role, status) {
+        function editUser(id, username, role, status, phoneNumber = '') {
             document.getElementById('editUserId').value = id;
             document.getElementById('editUsername').value = username;
             document.getElementById('editRole').value = role;
             document.getElementById('editStatus').value = status;
+            document.getElementById('editPhoneNumber').value = phoneNumber || '';
             document.getElementById('editPassword').value = '';
             
             document.getElementById('editUserModal').style.display = 'block';
@@ -2134,6 +2705,7 @@ function updateMessageReadStatus($data) {
             const password = document.getElementById('editPassword').value;
             const role = document.getElementById('editRole').value;
             const status = document.getElementById('editStatus').value;
+            const phoneNumber = document.getElementById('editPhoneNumber').value.trim();
 
             if (!username) {
                 showStatus('Введите имя пользователя', 'error');
@@ -2147,6 +2719,7 @@ function updateMessageReadStatus($data) {
             formData.append('password', password);
             formData.append('role', role);
             formData.append('status', status);
+            formData.append('phoneNumber', phoneNumber);
 
             fetch('admin.php', {
                 method: 'POST',
@@ -2163,6 +2736,45 @@ function updateMessageReadStatus($data) {
             .catch(error => {
                 showStatus('Ошибка при обновлении пользователя: ' + error.message, 'error');
             });
+        }
+
+        function deleteUserFromModal() {
+            const id = document.getElementById('editUserId').value;
+            const username = document.getElementById('editUsername').value.trim();
+            if (!id) {
+                showStatus('Не найден ID пользователя', 'error');
+                return;
+            }
+            if (!confirm(`Удалить пользователя "${username || 'без имени'}"?`)) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'delete_user');
+            formData.append('id', id);
+
+            fetch('admin.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                showStatus(data.message, data.success ? 'success' : 'error');
+                if (data.success) {
+                    closeEditUserModal();
+                    loadUsers();
+                }
+            })
+            .catch(error => {
+                showStatus('Ошибка при удалении пользователя: ' + error.message, 'error');
+            });
+        }
+
+        // Фильтрация истории сообщений
+        function applyMessagesFilter() {
+            const range = document.getElementById('messagesRange')?.value || 'all';
+            messages = filterByRange(messageHistoryData, 'SentDate', range);
+            displayMessagesTable();
         }
 
         // Отображение таблицы сообщений
@@ -2290,6 +2902,38 @@ function updateMessageReadStatus($data) {
             // Показываем нужную вкладку
             document.getElementById(tabName + 'Tab').classList.add('active');
             event.target.classList.add('active');
+            
+            // Загружаем данные при переключении на вкладку шаблонов
+            if (tabName === 'sms_templates') {
+                loadSmsTemplates();
+            }
+            if (tabName === 'user_messages') {
+                loadUserMessageTemplates();
+            }
+            
+            // Управление видимостью блока "Отправленные сообщения"
+            const sentMessagesSidebar = document.getElementById('sentMessagesSidebar');
+            const mainContent = document.getElementById('mainContentContainer');
+            
+            if (tabName === 'user_messages') {
+                // Показываем блок справа
+                if (sentMessagesSidebar) {
+                    sentMessagesSidebar.style.display = 'block';
+                }
+                // Изменяем grid на две колонки
+                if (mainContent) {
+                    mainContent.style.gridTemplateColumns = '1fr 1fr';
+                }
+            } else {
+                // Скрываем блок
+                if (sentMessagesSidebar) {
+                    sentMessagesSidebar.style.display = 'none';
+                }
+                // Возвращаем одну колонку
+                if (mainContent) {
+                    mainContent.style.gridTemplateColumns = '1fr';
+                }
+            }
         }
 
         // Показ статуса
@@ -2306,6 +2950,129 @@ function updateMessageReadStatus($data) {
 
 
         // Функции для работы с пользовательскими сообщениями
+
+        // Загрузка шаблонов (теперь используется только для хранения данных)
+        let userMessageTemplates = [];
+        function loadUserMessageTemplates() {
+            const formData = new FormData();
+            formData.append('action', 'get_sms_templates');
+
+            fetch('admin.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    userMessageTemplates = data.data;
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки шаблонов сообщений:', error);
+            });
+        }
+
+        // Открытие модального окна с шаблонами
+        function openTemplatesModal() {
+            const modal = document.getElementById('templatesModal');
+            const templatesList = document.getElementById('templatesList');
+            
+            if (!modal || !templatesList) return;
+
+            // Загружаем шаблоны, если они еще не загружены
+            if (userMessageTemplates.length === 0) {
+                templatesList.innerHTML = '<div class="loading">Загрузка шаблонов...</div>';
+                const formData = new FormData();
+                formData.append('action', 'get_sms_templates');
+
+                fetch('admin.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        userMessageTemplates = data.data;
+                        displayTemplatesInModal();
+                    } else {
+                        templatesList.innerHTML = '<div class="template-empty">Шаблоны не найдены</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка загрузки шаблонов:', error);
+                    templatesList.innerHTML = '<div class="template-empty">Ошибка загрузки шаблонов</div>';
+                });
+            } else {
+                displayTemplatesInModal();
+            }
+
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Отображение шаблонов в модальном окне
+        function displayTemplatesInModal() {
+            const templatesList = document.getElementById('templatesList');
+            if (!templatesList) return;
+
+            if (userMessageTemplates.length === 0) {
+                templatesList.innerHTML = '<div class="template-empty">Шаблоны не найдены</div>';
+                return;
+            }
+
+            templatesList.innerHTML = '';
+            userMessageTemplates.forEach(template => {
+                const templateItem = document.createElement('div');
+                templateItem.className = 'template-item';
+                templateItem.onclick = () => selectTemplate(template.TemplateText);
+                
+                templateItem.innerHTML = `
+                    <div class="template-name">${escapeHtml(template.TemplateName)}</div>
+                    <div class="template-text">${escapeHtml(template.TemplateText)}</div>
+                `;
+                
+                templatesList.appendChild(templateItem);
+            });
+        }
+
+        // Выбор шаблона и добавление текста в поле сообщения
+        function selectTemplate(templateText) {
+            if (!templateText) return;
+
+            const textarea = document.getElementById('userMessageText');
+            if (!textarea) return;
+
+            let current = textarea.value || '';
+            if (current.trim().length === 0) {
+                current = templateText;
+            } else {
+                current = current + ' ' + templateText;
+            }
+            textarea.value = current;
+
+            // Триггерим обновление счетчика символов
+            const event = new Event('input');
+            textarea.dispatchEvent(event);
+
+            // Закрываем модальное окно
+            closeTemplatesModal();
+        }
+
+        // Закрытие модального окна с шаблонами
+        function closeTemplatesModal() {
+            const modal = document.getElementById('templatesModal');
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Функция для экранирования HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
         function syncUsers() {
             fetch('admin.php', {
                 method: 'POST',
@@ -2327,22 +3094,28 @@ function updateMessageReadStatus($data) {
 
         function sendUserMessage() {
             const messageText = document.getElementById('userMessageText').value.trim();
-            const recipientId = document.getElementById('userRecipientSelect').value;
+            const selected = document.querySelectorAll('#adminRecipientsList input[type="checkbox"]:checked');
 
             if (!messageText) {
                 showStatus('Введите текст сообщения', 'error');
                 return;
             }
 
-            if (!recipientId) {
-                showStatus('Выберите получателя. Если список пуст, сначала синхронизируйте пользователей.', 'error');
+            const textarea = document.getElementById('userMessageText');
+            if (!textarea) {
+                showStatus('Поле ввода сообщения недоступно', 'error');
+                return;
+            }
+
+            if (selected.length === 0) {
+                showStatus('Выберите получателей. Если список пуст, сначала синхронизируйте пользователей.', 'error');
                 return;
             }
 
             const formData = new FormData();
             formData.append('action', 'send_user_message');
             formData.append('message_text', messageText);
-            formData.append('recipient_id', recipientId);
+            selected.forEach(cb => formData.append('recipients[]', cb.value));
 
             fetch('admin.php', {
                 method: 'POST',
@@ -2353,7 +3126,8 @@ function updateMessageReadStatus($data) {
                 showStatus(data.message, data.success ? 'success' : 'error');
                 if (data.success) {
                     document.getElementById('userMessageText').value = '';
-                    document.getElementById('userRecipientSelect').value = '';
+                    document.querySelectorAll('#adminRecipientsList input[type="checkbox"]').forEach(cb => cb.checked = false);
+                    adminUpdateSelectedCount();
                     loadUserMessages();
                     loadMessages();
                     loadStatistics();
@@ -2374,7 +3148,12 @@ function updateMessageReadStatus($data) {
             .then(data => {
                 if (data.success) {
                     displayUserMessages(data.data);
-                    updateUserRecipientSelect();
+                    renderAdminRecipientsList();
+                    // Обновляем список шаблонов, если мы на вкладке пользовательских сообщений
+                    const userMessagesTab = document.getElementById('user_messagesTab');
+                    if (userMessagesTab && userMessagesTab.classList.contains('active')) {
+                        loadUserMessageTemplates();
+                    }
                 }
             })
             .catch(error => {
@@ -2382,76 +3161,108 @@ function updateMessageReadStatus($data) {
             });
         }
 
-        function displayUserMessages(data) {
-            // Отображение полученных сообщений
-            const receivedContainer = document.getElementById('receivedMessagesList');
-            if (data.received && data.received.length > 0) {
-                receivedContainer.innerHTML = data.received.map(msg => `
-                    <div class="message-item received-message" onclick="openMessageModal(${JSON.stringify(msg).replace(/"/g, '&quot;')})">
-                        <div class="message-header">
-                            <div class="message-text">
-                                <div class="message-type-badge">📥 Получено</div>
-                                ${msg.Text}
-                            </div>
-                            <div onclick="event.stopPropagation();">
-                                ${msg.ReadStatus === 'unread' ? 
-                                    `<button class="status-toggle-btn unread" onclick="updateReadStatus(${msg.UserMessageID}, 'read')" title="Отметить как прочитанное">
-                                        ✅ Отметить прочитанным
-                                    </button>` :
-                                    `<button class="status-toggle-btn read" onclick="updateReadStatus(${msg.UserMessageID}, 'unread')" title="Отметить как непрочитанное">
-                                        ❌ Отметить непрочитанным
-                                    </button>`
-                                }
-                            </div>
-                        </div>
-                        <div class="message-details">
-                            <div class="detail-row">
-                                <span class="detail-label">📅 Дата:</span>
-                                <span class="detail-value">${new Date(msg.SentDate).toLocaleString('ru-RU')}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">👤 Отправитель:</span>
-                                <span class="detail-value">${msg.SenderName} ${msg.GroupName ? `<span class="group-badge">${msg.GroupName}</span>` : ''}</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                receivedContainer.innerHTML = '<p style="text-align: center; color: #666;">Нет полученных сообщений</p>';
+        // --- Список получателей (админ вкладка) ---
+        function renderAdminRecipientsList() {
+            const list = document.getElementById('adminRecipientsList');
+            if (!list) return;
+            if (!recipients || recipients.length === 0) {
+                list.innerHTML = '<p style="color:#6b7280;">Получатели отсутствуют. Синхронизируйте пользователей.</p>';
+                adminUpdateSelectedCount();
+                return;
             }
 
-            // Отображение отправленных сообщений
-            const sentContainer = document.getElementById('sentMessagesList');
-            if (data.sent && data.sent.length > 0) {
-                sentContainer.innerHTML = data.sent.map(msg => `
-                    <div class="message-item sent-message" onclick="openMessageModal(${JSON.stringify(msg).replace(/"/g, '&quot;')})">
-                        <div class="message-header">
-                            <div class="message-text">
-                                <div class="message-type-badge">📤 Отправлено</div>
-                                ${msg.Text}
-                            </div>
-                            <div onclick="event.stopPropagation();">
-                                <button class="status-toggle-btn ${msg.ReadStatus}" onclick="updateReadStatus(${msg.UserMessageID}, '${msg.ReadStatus === 'read' ? 'unread' : 'read'}')">
-                                    ${msg.ReadStatus === 'read' ? '✅ Прочитано' : '❌ Не прочитано'}
-                                </button>
-                            </div>
-                        </div>
-                        <div class="message-details">
-                            <div class="detail-row">
-                                <span class="detail-label">📅 Дата:</span>
-                                <span class="detail-value">${new Date(msg.SentDate).toLocaleString('ru-RU')}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">👤 Получатель:</span>
-                                <span class="detail-value">${msg.ContactName} ${msg.GroupName ? `<span class="group-badge">${msg.GroupName}</span>` : ''}</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                sentContainer.innerHTML = '<p style="text-align: center; color: #666;">Нет отправленных сообщений</p>';
+            const searchVal = (document.getElementById('adminRecipientSearch').value || '').toLowerCase().trim();
+            const groupVal = (document.getElementById('adminFilterGroup').value || '').toLowerCase().trim();
+
+            const filtered = recipients.filter(r => {
+                const name = (r.FullName || '').toLowerCase();
+                const phone = (r.PhoneNumber || '').toLowerCase();
+                const group = (r.GroupName || '').toLowerCase();
+                const matchText = !searchVal || name.includes(searchVal) || phone.includes(searchVal);
+                const matchGroup = !groupVal || group === groupVal;
+                return matchText && matchGroup;
+            });
+
+            if (filtered.length === 0) {
+                list.innerHTML = '<p style="color:#6b7280;">Нет совпадений по фильтру.</p>';
+                adminUpdateSelectedCount();
+                return;
             }
+
+            list.innerHTML = filtered.map(r => `
+                <label class="recipient-card">
+                    <input type="checkbox" value="${r.RecipientID}">
+                    <div class="recipient-meta">
+                        <div class="recipient-name">${r.FullName || ''}</div>
+                        <div class="recipient-phone">${r.PhoneNumber || ''}</div>
+                    </div>
+                    ${r.GroupName ? `<span class="badge badge-muted">${r.GroupName}</span>` : ''}
+                </label>
+            `).join('');
+            adminUpdateSelectedCount();
         }
+
+        function adminUpdateSelectedCount() {
+            const el = document.getElementById('adminSelectedCount');
+            if (!el) return;
+            const count = document.querySelectorAll('#adminRecipientsList input[type="checkbox"]:checked').length;
+            el.textContent = count;
+            const textarea = document.getElementById('userMessageText');
+            if (textarea) textarea.disabled = count === 0;
+        }
+
+        function adminSelectAllVisible() {
+            document.querySelectorAll('#adminRecipientsList .recipient-card').forEach(card => {
+                if (card.style.display === 'none') return;
+                const cb = card.querySelector('input[type="checkbox"]');
+                if (cb) cb.checked = true;
+            });
+            adminUpdateSelectedCount();
+        }
+
+        function adminClearSelection() {
+            document.querySelectorAll('#adminRecipientsList input[type="checkbox"]').forEach(cb => cb.checked = false);
+            adminUpdateSelectedCount();
+        }
+
+        document.getElementById('adminRecipientSearch')?.addEventListener('input', renderAdminRecipientsList);
+        document.getElementById('adminFilterGroup')?.addEventListener('change', renderAdminRecipientsList);
+        document.getElementById('adminSelectAllBtn')?.addEventListener('click', adminSelectAllVisible);
+        document.getElementById('adminClearSelectionBtn')?.addEventListener('click', adminClearSelection);
+        document.getElementById('adminRecipientsList')?.addEventListener('change', adminUpdateSelectedCount);
+        document.getElementById('messagesRange')?.addEventListener('change', applyMessagesFilter);
+        document.getElementById('logRangeSelect')?.addEventListener('change', applySystemLogFilter);
+
+        function displayUserMessages(data) {
+    // Отображение отправленных сообщений
+    const sentContainer = document.getElementById('sentMessagesList');
+    if (data.sent && data.sent.length > 0) {
+        sentContainer.innerHTML = data.sent.map(msg => `
+            <div class="message-item sent-message" onclick="openMessageModal(${JSON.stringify(msg).replace(/"/g, '&quot;')})">
+                <div class="message-header">
+                    <div class="message-text">
+                        <div class="message-type-badge">📤 Отправлено</div>
+                        ${msg.Text}
+                    </div>
+                </div>
+                <div class="message-details">
+                    <div class="detail-row">
+                        <span class="detail-label">📅 Дата:</span>
+                        <span class="detail-value">${new Date(msg.SentDate).toLocaleString('ru-RU')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">👤 Получатель:</span>
+                        <span class="detail-value">${msg.ContactName} 
+                            ${msg.GroupName ? `<span class="group-badge">${msg.GroupName}</span>` : ''}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        sentContainer.innerHTML = '<p style="text-align: center; color: #666;">Нет отправленных сообщений</p>';
+    }
+}
 
         function updateUserRecipientSelect() {
             const select = document.getElementById('userRecipientSelect');
@@ -2514,15 +3325,7 @@ function updateMessageReadStatus($data) {
             const contactName = messageData.MessageType === 'sent' ? 
                 messageData.ContactName : messageData.SenderName;
             document.getElementById('modalContact').textContent = contactName;
-            
-            // Статус прочтения
-            const statusText = messageData.ReadStatus === 'read' ? 'Прочитано' : 'Не прочитано';
-            document.getElementById('modalStatus').textContent = statusText;
-            
-            // Дата прочтения
-            const readDateText = messageData.ReadDate ? 
-                new Date(messageData.ReadDate).toLocaleString('ru-RU') : 'Не прочитано';
-            document.getElementById('modalReadDate').textContent = readDateText;
+            document.getElementById('modalPhone').textContent = messageData.PhoneNumber || '—';
             
             // Автоматически отмечаем полученное сообщение как прочитанное при открытии
             if (messageData.MessageType === 'received' && messageData.ReadStatus === 'unread') {
@@ -2547,10 +3350,6 @@ function updateMessageReadStatus($data) {
             })
             .then(response => response.json())
             .then(data => {
-                // Обновляем статус в модальном окне
-                document.getElementById('modalStatus').textContent = 'Прочитано';
-                document.getElementById('modalReadDate').textContent = new Date().toLocaleString('ru-RU');
-                
                 // Обновляем страницу для отображения изменений
                 setTimeout(() => {
                     loadUserMessages();
@@ -2561,10 +3360,244 @@ function updateMessageReadStatus($data) {
             });
         }
 
+        // Универсальный фильтр по временным диапазонам
+        function filterByRange(items, fieldName, range) {
+            if (!Array.isArray(items) || range === 'all') return items || [];
+            const now = new Date();
+            let cutoff = null;
+            switch (range) {
+                case 'day':   cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000); break;
+                case 'week':  cutoff = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000); break;
+                case 'month': cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+                case 'year':  cutoff = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
+                default: return items;
+            }
+            return items.filter(item => {
+                const dt = new Date(item[fieldName]);
+                return !isNaN(dt) && dt >= cutoff;
+            });
+        }
+
+        // Очистка журнала системы
+        function clearSystemLogs() {
+            if (!confirm('Очистить журнал действий системы?')) return;
+            fetch('admin.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=clear_system_logs'
+            })
+            .then(r => r.json())
+            .then(data => {
+                showStatus(data.message || 'Журнал очищен', data.success ? 'success' : 'error');
+                if (data.success) {
+                    systemLogsData = [];
+                    displaySystemLogTable([]);
+                }
+            })
+            .catch(err => showStatus('Ошибка очистки журнала: ' + (err.message || err), 'error'));
+        }
+
+        // Очистка истории сообщений
+        function clearMessageHistory() {
+            if (!confirm('Очистить историю сообщений?')) return;
+            fetch('admin.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=clear_message_history'
+            })
+            .then(r => r.json())
+            .then(data => {
+                showStatus(data.message || 'История очищена', data.success ? 'success' : 'error');
+                if (data.success) {
+                    messageHistoryData = [];
+                    displayMessagesTable();
+                    loadStatistics();
+                }
+            })
+            .catch(err => showStatus('Ошибка очистки истории: ' + (err.message || err), 'error'));
+        }
+
         function closeModal() {
             const modal = document.getElementById('messageModal');
             modal.style.display = 'none';
             document.body.style.overflow = 'auto';
+        }
+
+        // Функции для работы с шаблонами SMS
+        function loadSmsTemplates() {
+            fetch('admin.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=get_sms_templates'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    smsTemplates = data.data || [];
+                    displaySmsTemplatesTable();
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки шаблонов:', error);
+            });
+        }
+
+        function displaySmsTemplatesTable() {
+            const container = document.getElementById('smsTemplatesTable');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (smsTemplates.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666;">Нет шаблонов</p>';
+                return;
+            }
+            
+            let table = '<table class="data-table"><thead><tr><th>Название</th><th>Текст</th><th>Создан</th><th>Обновлен</th><th>Действия</th></tr></thead><tbody>';
+            
+            smsTemplates.forEach(template => {
+                const textPreview = template.TemplateText.length > 50 ? 
+                    template.TemplateText.substring(0, 50) + '...' : 
+                    template.TemplateText;
+                const createdAt = template.CreatedAt ? new Date(template.CreatedAt).toLocaleString('ru-RU') : '—';
+                const updatedAt = template.UpdatedAt ? new Date(template.UpdatedAt).toLocaleString('ru-RU') : '—';
+                
+                table += `
+                    <tr>
+                        <td><strong>${escapeHtml(template.TemplateName)}</strong></td>
+                        <td>${escapeHtml(textPreview)}</td>
+                        <td>${createdAt}</td>
+                        <td>${updatedAt}</td>
+                        <td>
+                            <button class="btn" onclick="editSmsTemplate(${template.TemplateID})" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">
+                                <i class="fas fa-edit"></i> Редактировать
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteSmsTemplate(${template.TemplateID})" style="padding: 5px 10px; font-size: 12px;">
+                                <i class="fas fa-trash"></i> Удалить
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            table += '</tbody></table>';
+            container.innerHTML = table;
+        }
+
+        function saveSmsTemplate() {
+            const templateName = document.getElementById('templateName').value.trim();
+            const templateText = document.getElementById('templateText').value.trim();
+            
+            if (!templateName) {
+                showTemplateStatus('Введите название шаблона', 'error');
+                return;
+            }
+            
+            if (!templateText) {
+                showTemplateStatus('Введите текст шаблона', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('action', editingTemplateId ? 'update_sms_template' : 'add_sms_template');
+            if (editingTemplateId) {
+                formData.append('template_id', editingTemplateId);
+            }
+            formData.append('template_name', templateName);
+            formData.append('template_text', templateText);
+            
+            fetch('admin.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                showTemplateStatus(data.message, data.success ? 'success' : 'error');
+                if (data.success) {
+                    clearTemplateForm();
+                    loadSmsTemplates();
+                }
+            })
+            .catch(error => {
+                showTemplateStatus('Ошибка при сохранении шаблона: ' + error.message, 'error');
+            });
+        }
+
+        function editSmsTemplate(id) {
+            fetch('admin.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=get_sms_template&id=' + id
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    const template = data.data;
+                    document.getElementById('templateName').value = template.TemplateName;
+                    document.getElementById('templateText').value = template.TemplateText;
+                    editingTemplateId = template.TemplateID;
+                    
+                    // Обновляем кнопки
+                    document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-save"></i> Обновить шаблон';
+                    document.getElementById('clearTemplateBtn').style.display = 'inline-block';
+                    
+                    // Прокручиваем к форме
+                    document.getElementById('templateName').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    showTemplateStatus('Шаблон не найден', 'error');
+                }
+            })
+            .catch(error => {
+                showTemplateStatus('Ошибка при загрузке шаблона: ' + error.message, 'error');
+            });
+        }
+
+        function deleteSmsTemplate(id) {
+            const template = smsTemplates.find(t => t.TemplateID === id);
+            const templateName = template ? template.TemplateName : 'шаблон';
+            
+            if (!confirm(`Вы уверены, что хотите удалить шаблон "${templateName}"?`)) {
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('action', 'delete_sms_template');
+            formData.append('id', id);
+            
+            fetch('admin.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                showTemplateStatus(data.message, data.success ? 'success' : 'error');
+                if (data.success) {
+                    loadSmsTemplates();
+                }
+            })
+            .catch(error => {
+                showTemplateStatus('Ошибка при удалении шаблона: ' + error.message, 'error');
+            });
+        }
+
+        function clearTemplateForm() {
+            document.getElementById('templateName').value = '';
+            document.getElementById('templateText').value = '';
+            editingTemplateId = null;
+            document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить шаблон';
+            document.getElementById('clearTemplateBtn').style.display = 'none';
+            document.getElementById('templateCharCounter').textContent = '0 символов';
+        }
+
+        function showTemplateStatus(message, type) {
+            const statusDiv = document.getElementById('templateStatusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message status-${type}`;
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
         }
     </script>
 </body>

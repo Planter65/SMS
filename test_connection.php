@@ -10,7 +10,7 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: url("fon.gif") center/cover fixed no-repeat, #eef2f7;
             min-height: 100vh;
         }
         .container {
@@ -79,7 +79,7 @@
     </style>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="app-shell">
     <?php include 'navigation.php'; ?>
     <div class="container">
         <h1>🔧 Тест подключения к базе данных</h1>
