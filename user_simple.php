@@ -133,6 +133,7 @@ $conn = connectToDatabase();
 $recipients = [];
 $recipientGroups = [];
 $smsTemplates = [];
+$checkboxTemplates = [];
 
 try {
     $current_username = $user['username'] ?? '';
@@ -188,6 +189,17 @@ try {
     if ($templatesResult) {
         while ($tRow = $templatesResult->fetch_assoc()) {
             $smsTemplates[] = $tRow;
+        }
+    }
+    
+    // Чекбокс-шаблоны
+    if ($selectedCompanyId) {
+        $companyId = (int)$selectedCompanyId;
+        $checkboxResult = $conn->query("SELECT CheckboxTemplateID, CompanyID, TemplateName, TemplateData FROM sms_checkbox_templates WHERE CompanyID = $companyId ORDER BY TemplateName");
+        if ($checkboxResult) {
+            while ($cbRow = $checkboxResult->fetch_assoc()) {
+                $checkboxTemplates[] = $cbRow;
+            }
         }
     }
 } catch (Exception $e) {
@@ -281,10 +293,11 @@ $conn->close();
                 <!-- 3. Выбор шаблона -->
                 <div class="mb-6">
                     <label class="block text-base font-semibold text-gray-700 mb-3">3. Или выберите готовый шаблон</label>
-                    <?php if (empty($smsTemplates)): ?>
-                        <p class="text-gray-500 text-base">У вас нет сохранённых шаблонов. Введите текст вручную.</p>
-                    <?php else: ?>
-                        <div class="space-y-2">
+                    
+                    <!-- Обычные текстовые шаблоны -->
+                    <?php if (!empty($smsTemplates)): ?>
+                        <div class="space-y-2 mb-4">
+                            <p class="text-sm text-gray-500 font-medium">📄 Текстовые шаблоны:</p>
                             <?php foreach ($smsTemplates as $t): ?>
                             <button type="button" class="template-btn" onclick="useTemplate(<?php echo htmlspecialchars(json_encode($t['TemplateText']), ENT_QUOTES, 'UTF-8'); ?>)">
                                 📄 <strong><?php echo htmlspecialchars($t['TemplateName']); ?></strong>
@@ -292,6 +305,24 @@ $conn->close();
                             </button>
                             <?php endforeach; ?>
                         </div>
+                    <?php endif; ?>
+                    
+                    <!-- Чекбокс-шаблоны -->
+                    <?php if (!empty($checkboxTemplates)): ?>
+                        <div class="space-y-2">
+                            <p class="text-sm text-gray-500 font-medium">✅ Чекбокс-шаблоны (таблица):</p>
+                            <?php foreach ($checkboxTemplates as $cb): ?>
+                            <button type="button" class="template-btn border-emerald-300 bg-emerald-50/30 hover:bg-emerald-100" 
+                                    onclick="useCheckboxTemplate(<?php echo htmlspecialchars(json_encode($cb['TemplateData']), ENT_QUOTES, 'UTF-8'); ?>, '<?php echo htmlspecialchars($cb['TemplateName'], ENT_QUOTES, 'UTF-8'); ?>')">
+                                ✅ <strong><?php echo htmlspecialchars($cb['TemplateName']); ?></strong>
+                                <div class="text-sm text-gray-600">Таблица — выберите нужные строки и столбцы</div>
+                            </button>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <?php if (empty($smsTemplates) && empty($checkboxTemplates)): ?>
+                        <p class="text-gray-500 text-base">У вас нет сохранённых шаблонов. Введите текст вручную.</p>
                     <?php endif; ?>
                 </div>
                 
@@ -315,7 +346,7 @@ $conn->close();
             }
         });
         
-        // Использование шаблона
+        // Использование обычного шаблона
         function useTemplate(text) {
             var textarea = document.getElementById('message_text');
             textarea.value = text;
@@ -323,7 +354,131 @@ $conn->close();
             textarea.dispatchEvent(event);
             textarea.focus();
         }
-        
+
+        // Использование чекбокс-шаблона (таблица)
+        function useCheckboxTemplate(templateData, templateName) {
+            var parsed;
+            try {
+                parsed = JSON.parse(templateData);
+            } catch (e) {
+                alert('Ошибка чтения шаблона');
+                return;
+            }
+
+            var cols = parsed.columns || [];
+            var rows = parsed.rows || [];
+
+            // Создаём модальное окно для выбора строк и столбцов
+            var modalHtml = '<div id="checkboxModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">';
+            modalHtml += '<div class="bg-white rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">';
+            modalHtml += '<h3 class="text-xl font-bold mb-4">✅ ' + templateName + '</h3>';
+            
+            // Выбор столбцов (кроме первого - это label)
+            if (cols.length > 1) {
+                modalHtml += '<p class="text-sm text-gray-600 mb-2">Выберите столбцы для вставки:</p>';
+                modalHtml += '<div class="flex flex-wrap gap-2 mb-4">';
+                for (var ci = 1; ci < cols.length; ci++) {
+                    modalHtml += '<label class="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-emerald-100">';
+                    modalHtml += '<input type="checkbox" class="cb-col-select" data-col="' + ci + '" checked style="width:18px;height:18px;">';
+                    modalHtml += '<span>' + escapeHtml(cols[ci]) + '</span></label>';
+                }
+                modalHtml += '</div>';
+            }
+
+            // Выбор строк
+            modalHtml += '<p class="text-sm text-gray-600 mb-2">Выберите строки для вставки:</p>';
+            modalHtml += '<table class="w-full border-collapse border border-gray-300 mb-4">';
+            modalHtml += '<thead><tr class="bg-gray-100"><th class="border border-gray-300 p-2 text-left">✓</th>';
+            cols.forEach(function(c) {
+                modalHtml += '<th class="border border-gray-300 p-2 text-left">' + escapeHtml(c) + '</th>';
+            });
+            modalHtml += '</tr></thead><tbody>';
+
+            rows.forEach(function(r, ri) {
+                var label = r.label || '';
+                var vals = r.values || [];
+                modalHtml += '<tr><td class="border border-gray-300 p-2 text-center">';
+                modalHtml += '<input type="checkbox" class="cb-row-select" data-row="' + ri + '" style="width:20px;height:20px;">';
+                modalHtml += '</td><td class="border border-gray-300 p-2">' + escapeHtml(label) + '</td>';
+                vals.forEach(function(v) {
+                    modalHtml += '<td class="border border-gray-300 p-2">' + escapeHtml(v) + '</td>';
+                });
+                modalHtml += '</tr>';
+            });
+            modalHtml += '</tbody></table>';
+
+            modalHtml += '<div class="flex gap-3">';
+            modalHtml += '<button onclick="applyCheckboxTemplate()" class="bg-emerald-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-emerald-700">Вставить в сообщение</button>';
+            modalHtml += '<button onclick="closeCheckboxModal()" class="bg-gray-300 text-gray-800 px-6 py-3 rounded-lg font-semibold hover:bg-gray-400">Отмена</button>';
+            modalHtml += '</div></div></div>';
+
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        function escapeHtml(text) {
+            return String(text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function closeCheckboxModal() {
+            var modal = document.getElementById('checkboxModal');
+            if (modal) modal.remove();
+        }
+
+        function applyCheckboxTemplate() {
+            var selectedCols = [];
+            document.querySelectorAll('.cb-col-select:checked').forEach(function(cb) {
+                selectedCols.push(parseInt(cb.getAttribute('data-col'), 10));
+            });
+
+            var selectedRows = [];
+            document.querySelectorAll('.cb-row-select:checked').forEach(function(cb) {
+                selectedRows.push(parseInt(cb.getAttribute('data-row'), 10));
+            });
+
+            if (selectedRows.length === 0) {
+                alert('Выберите хотя бы одну строку');
+                return;
+            }
+
+            // Получаем данные из таблицы (они хранятся в DOM)
+            var table = document.querySelector('#checkboxModal table tbody');
+            var rows = table.querySelectorAll('tr');
+            
+            var resultText = '';
+            selectedRows.forEach(function(ri) {
+                var row = rows[ri];
+                var cells = row.querySelectorAll('td');
+                if (cells.length > 1) {
+                    var labelText = cells[1].textContent.trim();
+                    var values = [];
+                    for (var i = 0; i < selectedCols.length; i++) {
+                        var colIdx = selectedCols[i];
+                        if (cells.length > colIdx + 1) {
+                            values.push(cells[colIdx + 1].textContent.trim());
+                        }
+                    }
+                    if (values.length > 0) {
+                        resultText += labelText + ': ' + values.join(', ') + '\n';
+                    }
+                }
+            });
+
+            // Вставляем в текстовое поле
+            var textarea = document.getElementById('message_text');
+            if (textarea.value) {
+                textarea.value += '\n' + resultText;
+            } else {
+                textarea.value = resultText;
+            }
+
+            // Триггерим событие input для обновления счётчика
+            var event = new Event('input');
+            textarea.dispatchEvent(event);
+            textarea.focus();
+
+            closeCheckboxModal();
+        }
+
         // Фильтрация получателей по группе
         function filterRecipients() {
             var selectedGroup = document.getElementById('groupFilter').value;
