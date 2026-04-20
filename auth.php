@@ -379,7 +379,15 @@ function getSelectedCompanyName() {
     }
     $stmt->close();
     $conn->close();
-    
     return $companyName;
+}
+
+// Получить доступные предприятия для текущего пользователя
+function getAvailableCompanies() {
+    $user = getCurrentUser();
+    if (!$user || !isset($user['id'])) {
+        return [];
+    }
+    return getCompaniesForUser($user['id']);
 }
 ?>
