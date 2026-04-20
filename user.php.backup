@@ -55,6 +55,8 @@ function ensureUserMessagesTable($conn) {
 
 // Расширение таблицы логов отправки для статусов провайдера (Beeline A2P и др.)
 function ensureMessageLogsExtended($conn) {
+    // Базовая таблица messagelogs должна существовать (в проекте она создается через SQL)
+    // Добавляем недостающие колонки "мягко", чтобы не ломать существующие инсталляции.
     $cols = [];
     $res = @$conn->query("SHOW COLUMNS FROM messagelogs");
     if ($res) {
@@ -69,6 +71,7 @@ function ensureMessageLogsExtended($conn) {
     if (!isset($cols['ProviderStatusText'])) $adds[] = "ADD COLUMN ProviderStatusText TEXT NULL AFTER ProviderSmsGroupId";
     if (!isset($cols['UpdatedAt'])) $adds[] = "ADD COLUMN UpdatedAt DATETIME NULL AFTER SentDate";
     if (!empty($adds)) {
+        // выполняем по одному ALTER, чтобы проще диагностировать ошибки
         foreach ($adds as $sqlAdd) {
             @$conn->query("ALTER TABLE messagelogs {$sqlAdd}");
         }
