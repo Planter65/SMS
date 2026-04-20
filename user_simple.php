@@ -66,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $recipient_ids = isset($_POST['recipients']) && is_array($_POST['recipients']) ? $_POST['recipients'] : [];
         $recipient_ids = array_filter(array_map('intval', $recipient_ids));
         $message_text = trim($_POST['message_text'] ?? '');
+        $test_mode = isset($_POST['test_mode']) && $_POST['test_mode'] == '1';
         
         if (empty($recipient_ids) || $message_text === '') {
             $error = 'Выберите получателя и введите текст сообщения';
@@ -81,16 +82,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $sender_id = (int)($user['id'] ?? 0);
                 $sent_ok = 0;
                 $sent_fail = 0;
+                $test_details = [];
                 
                 foreach ($recipient_ids as $recipient_id) {
-                    $stmt = $conn->prepare("SELECT r.PhoneNumber, COALESCE(u.Role, '') AS UserRole FROM recipients r LEFT JOIN users u ON r.FullName = u.Username WHERE r.RecipientID = ?");
+                    $stmt = $conn->prepare("SELECT r.PhoneNumber, r.FullName, COALESCE(u.Role, '') AS UserRole FROM recipients r LEFT JOIN users u ON r.FullName = u.Username WHERE r.RecipientID = ?");
                     $stmt->bind_param("i", $recipient_id);
                     $stmt->execute();
                     $recipient = $stmt->get_result()->fetch_assoc();
                     $stmt->close();
                     
-                    if (!$recipient || (($recipient['UserRole'] ?? '') === 'admin') || empty($recipient['PhoneNumber'])) {
+                    if (!$recipient) {
                         $sent_fail++;
+                        $test_details[] = "ID $recipient_id: получатель не найден";
+                        continue;
+                    }
+                    
+                    if (($recipient['UserRole'] ?? '') === 'admin') {
+                        $sent_fail++;
+                        $test_details[] = "{$recipient['FullName']}: пропущен (администратор)";
+                        continue;
+                    }
+                    
+                    if (empty($recipient['PhoneNumber'])) {
+                        $sent_fail++;
+                        $test_details[] = "{$recipient['FullName']}: нет номера телефона";
+                        continue;
+                    }
+                    
+                    $test_details[] = "{$recipient['FullName']} ({$recipient['PhoneNumber']}): готов к отправке";
+                    
+                    // В тестовом режиме не отправляем реально, только проверяем
+                    if ($test_mode) {
+                        $sent_ok++;
                         continue;
                     }
                     
@@ -113,6 +136,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     if ($smsResult['success']) $sent_ok++; else $sent_fail++;
                 }
                 $conn->close();
+                
+                if ($test_mode) {
+                    // Тестовый режим - возвращаем детали проверки
+                    $message = "Проверка завершена. Найдено получателей: " . count($recipient_ids) . ".\\n";
+                    $message .= "Готовы к отправке: $sent_ok.\\n";
+                    if ($sent_fail > 0) {
+                        $message .= "Проблемы: $sent_fail.\\n";
+                    }
+                    $message .= "\\nДетали:\\n" . implode("\\n", array_slice($test_details, 0, 20));
+                    if (count($test_details) > 20) {
+                        $message .= "\\n... и ещё " . (count($test_details) - 20) . " записей";
+                    }
+                    echo json_encode(['success' => true, 'message' => $message]);
+                    exit;
+                }
                 
                 if ($sent_ok > 0) {
                     $message = "Отправлено SMS: $sent_ok" . (($sent_fail > 0) ? ", ошибок: $sent_fail" : "");
@@ -352,10 +390,15 @@ $conn->close();
                     <?php endif; ?>
                 </div>
                 
-                <!-- Кнопка отправки -->
-                <button type="submit" class="btn-primary mt-8">
-                    📨 Отправить SMS
-                </button>
+                <!-- Кнопки действий -->
+                <div class="flex flex-col sm:flex-row gap-4 mt-8">
+                    <button type="submit" class="btn-primary flex-1 text-lg py-4">
+                        📨 Отправить SMS
+                    </button>
+                    <button type="button" onclick="testSendSms()" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg transition duration-200 flex-1 text-lg">
+                        🧪 ТЕСТОВАЯ ОТПРАВКА (проверка)
+                    </button>
+                </div>
             </form>
         </div>
     </div>
@@ -536,6 +579,41 @@ $conn->close();
 
             // Прокручиваем к списку получателей для визуального подтверждения
             document.querySelector('.border-gray-300.max-h-64').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // ТЕСТОВАЯ ОТПРАВКА - проверка без реального списания
+        function testSendSms() {
+            var form = document.getElementById('sendSmsForm');
+            var formData = new FormData(form);
+            
+            // Добавляем флаг тестового режима
+            formData.append('test_mode', '1');
+            
+            // Показываем индикатор загрузки
+            var btn = event.target;
+            var originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Проверка...';
+            btn.disabled = true;
+            
+            fetch('user_simple.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ТЕСТ УСПЕШЕН!\\n\\n' + data.message + '\\n\\nСМС не были отправлены реально (тестовый режим).\\nТеперь можете нажать \"Отправить SMS\" для реальной рассылки.');
+                } else {
+                    alert('❌ ОШИБКА ТЕСТА:\\n\\n' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('❌ Ошибка соединения: ' + error);
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
         }
     </script>
 </body>
