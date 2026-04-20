@@ -484,15 +484,15 @@ $conn->close();
                         }
                     }
                     if (values.length > 0) {
-                        resultText += labelText + ': ' + values.join(', ') + '\n';
+                        resultText += labelText + ': ' + values.join(', ') + '; ';
                     }
                 }
             });
 
-            // Вставляем в текстовое поле
+            // Вставляем в текстовое поле (без дополнительного переноса строки)
             var textarea = document.getElementById('message_text');
             if (textarea.value) {
-                textarea.value += '\n' + resultText;
+                textarea.value += ' ' + resultText;
             } else {
                 textarea.value = resultText;
             }
