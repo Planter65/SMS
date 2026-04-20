@@ -258,6 +258,32 @@ $conn->close();
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    
+                    <!-- Кнопки быстрого выбора групп -->
+                    <div class="mb-4 space-y-2">
+                        <p class="text-sm text-gray-600 font-medium">📋 Быстрый выбор группы:</p>
+                        <?php 
+                        // Группируем получателей по группам
+                        $groupedRecipients = [];
+                        foreach ($recipients as $r) {
+                            $groupName = $r['GroupName'] ?? 'Без группы';
+                            if (!isset($groupedRecipients[$groupName])) {
+                                $groupedRecipients[$groupName] = [];
+                            }
+                            $groupedRecipients[$groupName][] = $r;
+                        }
+                        foreach ($groupedRecipients as $gName => $members): 
+                            $count = count($members);
+                        ?>
+                        <button type="button" 
+                                class="w-full text-left bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg px-4 py-3 text-base transition-colors"
+                                onclick="selectGroup('<?php echo htmlspecialchars($gName, ENT_QUOTES, 'UTF-8'); ?>')">
+                            📁 <strong><?php echo htmlspecialchars($gName); ?></strong> 
+                            <span class="text-blue-600">(<?php echo $count; ?> чел.)</span>
+                            <span class="text-gray-500 text-sm ml-2">Нажмите чтобы выбрать всех</span>
+                        </button>
+                        <?php endforeach; ?>
+                    </div>
                     <?php endif; ?>
                     
                     <!-- Список получателей -->
@@ -276,7 +302,7 @@ $conn->close();
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </div>
-                    <p class="text-sm text-gray-500 mt-2">✓ Можно выбрать несколько получателей</p>
+                    <p class="text-sm text-gray-500 mt-2">✓ Можно выбрать несколько получателей или целую группу</p>
                 </div>
                 
                 <!-- 2. Текстовое поле -->
@@ -494,6 +520,22 @@ $conn->close();
                     checkboxes[index].checked = false;
                 }
             });
+        }
+
+        // Выбор всей группы сразу
+        function selectGroup(groupName) {
+            var checkboxes = document.querySelectorAll('.recipient-checkbox');
+            var labels = document.querySelectorAll('.checkbox-label');
+
+            labels.forEach(function(label, index) {
+                var group = label.getAttribute('data-group') || '';
+                // Сравниваем название группы (для "Без группы" сравниваем с пустым или отсутствующим)
+                var isMatch = (groupName === 'Без группы' && group === '') || (group === groupName);
+                checkboxes[index].checked = isMatch;
+            });
+
+            // Прокручиваем к списку получателей для визуального подтверждения
+            document.querySelector('.border-gray-300.max-h-64').scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     </script>
 </body>
