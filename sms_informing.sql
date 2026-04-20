@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.1.1deb5ubuntu1
+-- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Хост: localhost:3306
--- Время создания: Дек 17 2025 г., 11:47
--- Версия сервера: 10.6.22-MariaDB-0ubuntu0.22.04.1
--- Версия PHP: 8.1.2-1ubuntu2.22
+-- Хост: 127.0.0.1
+-- Время создания: Мар 19 2026 г., 02:26
+-- Версия сервера: 10.4.32-MariaDB
+-- Версия PHP: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,14 +18,14 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- База данных: `project_Sabanov`
+-- База данных: `sms_informing`
 --
 
 DELIMITER $$
 --
 -- Процедуры
 --
-CREATE DEFINER=`Sabanov`@`%` PROCEDURE `sp_create_user` (IN `p_Username` VARCHAR(50), IN `p_PlainPassword` VARCHAR(255), IN `p_Role` ENUM('user','admin'))  BEGIN
+CREATE DEFINER=`Sabanov`@`%` PROCEDURE `sp_create_user` (IN `p_Username` VARCHAR(50), IN `p_PlainPassword` VARCHAR(255), IN `p_Role` ENUM('user','admin'))   BEGIN
     -- Проверка уникальности
     IF EXISTS (SELECT 1 FROM `users` WHERE `Username` = p_Username) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Пользователь уже существует';
@@ -36,20 +36,39 @@ CREATE DEFINER=`Sabanov`@`%` PROCEDURE `sp_create_user` (IN `p_Username` VARCHAR
     VALUES (p_Username, UPPER(SHA2(p_PlainPassword, 256)), p_Role);
 END$$
 
-CREATE DEFINER=`Sabanov`@`%` PROCEDURE `sp_register_failed_login` (IN `p_Username` VARCHAR(50))  BEGIN
+CREATE DEFINER=`Sabanov`@`%` PROCEDURE `sp_register_failed_login` (IN `p_Username` VARCHAR(50))   BEGIN
     UPDATE `users`
     SET `FailedLoginCount` = `FailedLoginCount` + 1,
         `LastFailedLoginAt` = NOW()
     WHERE `Username` = p_Username;
 END$$
 
-CREATE DEFINER=`Sabanov`@`%` PROCEDURE `sp_reset_failed_login` (IN `p_Username` VARCHAR(50))  BEGIN
+CREATE DEFINER=`Sabanov`@`%` PROCEDURE `sp_reset_failed_login` (IN `p_Username` VARCHAR(50))   BEGIN
     UPDATE `users`
     SET `FailedLoginCount` = 0
     WHERE `Username` = p_Username;
 END$$
 
 DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Структура таблицы `companies`
+--
+
+CREATE TABLE `companies` (
+  `CompanyID` int(11) NOT NULL,
+  `CompanyName` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Дамп данных таблицы `companies`
+--
+
+INSERT INTO `companies` (`CompanyID`, `CompanyName`) VALUES
+(1, 'Шахта им. С.М. Кирова'),
+(2, 'Шахта им. Рубана');
 
 -- --------------------------------------------------------
 
@@ -71,9 +90,7 @@ INSERT INTO `groups` (`GroupID`, `GroupName`) VALUES
 (2, 'Клиенты'),
 (3, 'Поставщики'),
 (4, 'Руководство'),
-(5, 'IT отдел'),
-(6, '<script>alert(\"fff\")</script>'),
-(7, '<script>alert(\"fff\")</script>');
+(5, 'IT отдел');
 
 -- --------------------------------------------------------
 
@@ -86,39 +103,13 @@ CREATE TABLE `messagelogs` (
   `MessageID` int(2) DEFAULT NULL,
   `RecipientID` int(2) DEFAULT NULL,
   `Status` varchar(20) NOT NULL,
-  `SentDate` datetime NOT NULL
+  `Provider` varchar(32) DEFAULT NULL,
+  `ProviderSmsId` varchar(64) DEFAULT NULL,
+  `ProviderSmsGroupId` varchar(64) DEFAULT NULL,
+  `ProviderStatusText` text DEFAULT NULL,
+  `SentDate` datetime NOT NULL,
+  `UpdatedAt` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Дамп данных таблицы `messagelogs`
---
-
-INSERT INTO `messagelogs` (`LogID`, `MessageID`, `RecipientID`, `Status`, `SentDate`) VALUES
-(6, 6, 3, 'sent', '2025-10-19 16:58:29'),
-(7, 7, 5, 'sent', '2025-10-19 17:01:30'),
-(8, 8, 5, 'sent', '2025-10-19 17:03:25'),
-(9, 9, 3, 'sent', '2025-10-19 17:42:39'),
-(10, 10, 3, 'sent', '2025-10-19 18:06:28'),
-(11, 11, 5, 'sent', '2025-10-19 18:45:29'),
-(12, 12, 5, 'sent', '2025-10-19 18:49:32'),
-(13, 13, 5, 'sent', '2025-10-19 19:02:13'),
-(14, 14, 5, 'sent', '2025-10-19 19:07:29'),
-(15, 15, 3, 'sent', '2025-10-19 19:10:47'),
-(16, 16, 5, 'sent', '2025-10-20 10:14:23'),
-(17, 17, 5, 'sent', '2025-10-20 10:15:27'),
-(18, 18, 5, 'sent', '2025-10-20 10:26:22'),
-(19, 19, 4, 'sent', '2025-11-26 15:52:53'),
-(20, 20, 4, 'Доставлено', '2025-12-11 10:00:44'),
-(21, 21, 5, 'sent', '2025-12-11 10:11:32'),
-(29, 28, 2, 'Ошибка', '2025-12-11 16:07:15'),
-(30, 28, 3, 'Ошибка', '2025-12-11 16:07:15'),
-(31, 28, 4, 'Ошибка', '2025-12-11 16:07:15'),
-(32, 28, 5, 'Ошибка', '2025-12-11 16:07:16'),
-(34, 28, 7, 'Ошибка', '2025-12-11 16:07:16'),
-(42, 36, 5, 'Ошибка', '2025-12-15 11:26:23'),
-(43, 37, 5, 'Доставлено', '2025-12-15 11:26:28'),
-(44, 38, 3, 'Доставлено', '2025-12-17 10:46:10'),
-(45, 39, 5, 'Доставлено', '2025-12-17 10:52:14');
 
 -- --------------------------------------------------------
 
@@ -128,7 +119,7 @@ INSERT INTO `messagelogs` (`LogID`, `MessageID`, `RecipientID`, `Status`, `SentD
 
 CREATE TABLE `messages` (
   `MessageID` int(11) NOT NULL,
-  `Text` varchar(160) NOT NULL
+  `Text` varchar(600) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -136,42 +127,7 @@ CREATE TABLE `messages` (
 --
 
 INSERT INTO `messages` (`MessageID`, `Text`) VALUES
-(1, 'Сделай отчет'),
-(2, 'Дима скинь работу'),
-(6, 'Спасибо'),
-(7, 'rere'),
-(8, 'rere'),
-(9, 'Спасибо'),
-(10, 'Спасибо'),
-(11, 'Привет'),
-(12, 'КУ-ку'),
-(13, 'епта'),
-(14, 'Ghbdtncnde.'),
-(15, 'ненен'),
-(16, 'Куку'),
-(17, 'Привет'),
-(18, 'Rere'),
-(19, 'Нужно в бухгалтерию отнести бумаги.'),
-(20, 'Помоги'),
-(21, 'Привет'),
-(22, 'Ку-ку'),
-(23, 'ку'),
-(24, 'Привет'),
-(25, 'Привет'),
-(26, 'Привет'),
-(27, 'Привет'),
-(28, '123'),
-(29, 'Нужен отчет по практике'),
-(30, 'сюда'),
-(31, 'куку'),
-(32, 'Привет'),
-(33, 'Привет'),
-(34, 'Дорогой коллега. Нужно в 12:00 придти и помочь администратору с кодом.'),
-(35, 'Завтра можешь не приходить.'),
-(36, '12345'),
-(37, '12345'),
-(38, '123gdskgdsg'),
-(39, 'zsiuthhdxrti');
+(59, 'ку');
 
 -- --------------------------------------------------------
 
@@ -192,10 +148,37 @@ CREATE TABLE `recipients` (
 
 INSERT INTO `recipients` (`RecipientID`, `PhoneNumber`, `FullName`, `GroupID`) VALUES
 (2, '70000000002', 'user', 1),
-(3, '70000000004', 'Илья', 4),
+(3, '+79505850016', 'Илья', 4),
 (4, '70000000010', 'Дима', 1),
 (5, '70000000011', 'Данил', 1),
-(7, '+79505850017', 'Никита', 1);
+(7, '+79505850017', 'Никита', 1),
+(8, '+79039852242', 'Александр', 5),
+(9, '+79875442334', 'Ирина', 2);
+
+-- --------------------------------------------------------
+
+--
+-- Структура таблицы `sms_checkbox_templates`
+--
+
+CREATE TABLE `sms_checkbox_templates` (
+  `CheckboxTemplateID` int(11) NOT NULL,
+  `CompanyID` int(11) NOT NULL,
+  `TemplateName` varchar(255) NOT NULL,
+  `TemplateData` text NOT NULL,
+  `CreatedByUserID` int(10) UNSIGNED DEFAULT NULL,
+  `UpdatedByUserID` int(10) UNSIGNED DEFAULT NULL,
+  `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Дамп данных таблицы `sms_checkbox_templates`
+--
+
+INSERT INTO `sms_checkbox_templates` (`CheckboxTemplateID`, `CompanyID`, `TemplateName`, `TemplateData`, `CreatedByUserID`, `UpdatedByUserID`, `CreatedAt`, `UpdatedAt`) VALUES
+(1, 2, 'Лава', '{\"columns\":[\"Лава-265\",\"ad\",\"Wrt\"],\"rows\":[{\"label\":\"Плановые показатели качества:\",\"values\":[\"37,8\",\"7,5\"]},{\"label\":\"Фактические показатели:\",\"values\":[\"37,8\",\"6,6\"]}]}', NULL, 14, '2026-02-24 09:26:40', '2026-03-17 09:50:46'),
+(3, 1, 'По шахте Кирова', '{\"columns\":[\"по шахте\",\"ad\",\"wrt\"],\"rows\":[{\"label\":\"Предельные показатели качества\",\"values\":[\"37,8\",\"7,5\"]},{\"label\":\"Фактические показатели:\",\"values\":[\"37,8\",\"6,6\"]}]}', NULL, 14, '2026-03-17 09:23:29', '2026-03-17 09:50:56');
 
 -- --------------------------------------------------------
 
@@ -216,25 +199,7 @@ INSERT INTO `sms_settings` (`setting_key`, `setting_value`) VALUES
 ('SMSCRU_LOGIN', ''),
 ('SMSCRU_PASSWORD', ''),
 ('SMSRU_API_ID', '91E32E3C-A381-6FCE-B8B6-5752285D0AB5'),
-('SMS_PROVIDER', 'emulation');
-
--- --------------------------------------------------------
-
---
--- Структура таблицы `companies`
---
-
-CREATE TABLE `companies` (
-  `CompanyID` int(11) NOT NULL,
-  `CompanyName` varchar(255) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Дамп данных таблицы `companies`
---
-
-INSERT INTO `companies` (`CompanyID`, `CompanyName`) VALUES
-(1, 'Шахта им. С.М. Кирова');
+('SMS_PROVIDER', 'beeline_a2p');
 
 -- --------------------------------------------------------
 
@@ -245,11 +210,23 @@ INSERT INTO `companies` (`CompanyID`, `CompanyName`) VALUES
 CREATE TABLE `sms_templates` (
   `TemplateID` int(11) NOT NULL,
   `CompanyID` int(11) NOT NULL,
+  `UserID` int(10) UNSIGNED DEFAULT NULL,
   `TemplateName` varchar(255) NOT NULL,
   `TemplateText` text NOT NULL,
   `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
   `UpdatedAt` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Дамп данных таблицы `sms_templates`
+--
+
+INSERT INTO `sms_templates` (`TemplateID`, `CompanyID`, `UserID`, `TemplateName`, `TemplateText`, `CreatedAt`, `UpdatedAt`) VALUES
+(1, 1, NULL, 'Лава 25-65', 'Лава 25-65', '2025-12-17 19:11:34', '2025-12-17 19:11:34'),
+(2, 1, NULL, 'Приветствие', 'Добрый день! Шахта им. С.М. Кирова. По шахте', '2025-12-17 19:12:09', '2025-12-17 19:12:09'),
+(3, 1, NULL, 'Плановый показатель качества', 'ad-37%', '2025-12-17 19:19:08', '2025-12-17 19:19:08'),
+(4, 2, NULL, 'Для производства', 'состав угля состалвяет -25% угля', '2025-12-18 10:38:11', '2025-12-18 10:38:11'),
+(5, 2, 13, 'Приветствие', 'Здравствуйте.', '2026-02-24 09:33:19', '2026-02-24 09:33:19');
 
 -- --------------------------------------------------------
 
@@ -276,15 +253,15 @@ INSERT INTO `system_logs` (`LogID`, `Category`, `Action`, `Details`, `PerformedB
 (2, 'backup', 'create', 'Создан бекап backup_2025-10-01_10-11-58.json', 'Илья', '::1', '2025-10-01 15:12:36'),
 (3, 'users', 'add_error', 'Ошибка добавления пользователя: Данил', 'Илья', '::1', '2025-10-19 16:21:30'),
 (4, 'users', 'add', 'Добавлен пользователь: Данил, роль: user', 'Илья', '::1', '2025-10-19 16:21:47'),
-(5, 'user', 'message_error', 'Исключение: Cannot add or update a child row: a foreign key constraint fails (`project_Sabanov`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)', 'Данил', '::1', '2025-10-19 16:54:24'),
-(6, 'user', 'sms_error', 'Исключение: Cannot add or update a child row: a foreign key constraint fails (`project_Sabanov`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)', 'Данил', '::1', '2025-10-19 16:55:40'),
-(7, 'user', 'sms_error', 'Исключение: Cannot add or update a child row: a foreign key constraint fails (`project_Sabanov`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)', 'Данил', '::1', '2025-10-19 16:58:17'),
+(5, 'user', 'message_error', 'Исключение: Cannot add or update a child row: a foreign key constraint fails (`sms_informing`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)', 'Данил', '::1', '2025-10-19 16:54:24'),
+(6, 'user', 'sms_error', 'Исключение: Cannot add or update a child row: a foreign key constraint fails (`sms_informing`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)', 'Данил', '::1', '2025-10-19 16:55:40'),
+(7, 'user', 'sms_error', 'Исключение: Cannot add or update a child row: a foreign key constraint fails (`sms_informing`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)', 'Данил', '::1', '2025-10-19 16:58:17'),
 (8, 'user', 'sync_users', 'Синхронизировано: 4 пользователей', 'Данил', '::1', '2025-10-19 16:58:19'),
 (9, 'user', 'sms_send', 'SMS: Спасибо; получатель ID: 3', 'Данил', '::1', '2025-10-19 16:58:29'),
 (10, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Данил', '::1', '2025-10-19 17:01:24'),
 (11, 'user', 'sms_send', 'SMS: rere; получатель ID: 5', 'Данил', '::1', '2025-10-19 17:01:30'),
 (12, 'user', 'sms_send', 'SMS: rere; получатель ID: 5', 'Данил', '::1', '2025-10-19 17:03:25'),
-(13, 'user', 'sms_error', 'Исключение: Can\'t create table `project_Sabanov`.`user_messages` (errno: 150 \"Foreign key constraint is incorrectly formed\")', 'Данил', '::1', '2025-10-19 17:39:37'),
+(13, 'user', 'sms_error', 'Исключение: Can\'t create table `sms_informing`.`user_messages` (errno: 150 \"Foreign key constraint is incorrectly formed\")', 'Данил', '::1', '2025-10-19 17:39:37'),
 (14, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Данил', '::1', '2025-10-19 17:39:41'),
 (15, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Данил', '::1', '2025-10-19 17:42:03'),
 (16, 'user', 'sms_error', 'Исключение: Field \'UserMessageID\' doesn\'t have a default value', 'Данил', '::1', '2025-10-19 17:42:39'),
@@ -415,7 +392,110 @@ INSERT INTO `system_logs` (`LogID`, `Category`, `Action`, `Details`, `PerformedB
 (141, 'user', 'sms_send', 'SMS: 123gdskgdsg; получателей: 1; отправлено: 1; ошибки: 0', 'Илья', '::1', '2025-12-17 10:46:12'),
 (142, 'user', 'sms_send', 'SMS: zsiuthhdxrti; получателей: 1; отправлено: 1; ошибки: 0', 'Илья', '::1', '2025-12-17 10:52:17'),
 (143, 'groups', 'add', 'Добавлена группа: <script>alert(\"fff\")</script>', 'Илья', '::1', '2025-12-17 11:29:02'),
-(144, 'groups', 'add', 'Добавлена группа: <script>alert(\"fff\")</script>', 'Илья', '::1', '2025-12-17 11:29:05');
+(144, 'groups', 'add', 'Добавлена группа: <script>alert(\"fff\")</script>', 'Илья', '::1', '2025-12-17 11:29:05'),
+(145, 'groups', 'delete', 'Удалена группа ID=7', 'Илья', '::1', '2025-12-17 19:10:24'),
+(146, 'groups', 'delete', 'Удалена группа ID=6', 'Илья', '::1', '2025-12-17 19:10:26'),
+(147, 'sms_templates', 'add', 'Добавлен шаблон SMS: Лава 25-65', 'Илья', '::1', '2025-12-17 19:11:34'),
+(148, 'sms_templates', 'add', 'Добавлен шаблон SMS: Приветствие', 'Илья', '::1', '2025-12-17 19:12:09'),
+(149, 'sms_templates', 'add', 'Добавлен шаблон SMS: Плановый показатель качества', 'Илья', '::1', '2025-12-17 19:19:08'),
+(150, 'user', 'sms_send', 'SMS: Добрый день! Шахта им. С.М. Кирова. По шахте  Лава 25-65  ad-37%; получателей: 1; отправлено: 1; ошибки: 0', 'Илья', '::1', '2025-12-18 08:52:34'),
+(151, 'user', 'sms_send', 'SMS: Добрый день! Шахта им. С.М. Кирова. По шахте Предельная  ad-37%; получателей: 1; отправлено: 1; ошибки: 0', 'Илья', '::1', '2025-12-18 09:41:48'),
+(152, 'user', 'sms_send', 'SMS: Добрый день! Шахта им. С.М. Кирова. По шахте  ad-37%; получателей: 4; отправлено: 4; ошибки: 0', 'Илья', '::1', '2025-12-18 10:03:36'),
+(153, 'user', 'sms_send', 'SMS: Добрый день! Шахта им. С.М. Кирова. По шахте  ad-37%; получателей: 4; отправлено: 3; ошибки: 1', 'Илья', '::1', '2025-12-18 10:03:52'),
+(154, 'sms_templates', 'add', 'Добавлен шаблон SMS: Для производства', 'Илья', '::1', '2025-12-18 10:38:12'),
+(155, 'user', 'sms_send', 'SMS: состав угля состалвяет -25% угля; получателей: 1; отправлено: 1; ошибки: 0', 'Илья', '::1', '2025-12-18 10:38:32'),
+(156, 'users', 'delete', 'Удален пользователь ID=11', 'Илья', '::1', '2025-12-18 10:38:50'),
+(157, 'checkbox_templates', 'add', 'Добавлен чекбокс-шаблон: Лава на 2 предприятий', 'Илья', '::1', '2026-02-24 09:26:42'),
+(158, 'users', 'update', 'Обновлен пользователь ID=13, имя: Никита, роль: user, телефон: +79505850017', 'Илья', '::1', '2026-02-24 09:28:22'),
+(159, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=13', 'Илья', '::1', '2026-02-24 09:28:25'),
+(160, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-02-24 09:30:08'),
+(161, 'users', 'update', 'Обновлен пользователь ID=14, имя: Илья, роль: admin, телефон: +79505850016', 'Илья', '::1', '2026-02-24 09:30:54'),
+(162, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=14', 'Илья', '::1', '2026-02-24 09:30:57'),
+(163, 'users', 'update', 'Обновлен пользователь ID=2, имя: user, роль: user', 'Илья', '::1', '2026-02-24 09:31:14'),
+(164, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=2', 'Илья', '::1', '2026-02-24 09:31:17'),
+(165, 'user', 'sms_template_add', 'Добавлен шаблон: Приветствие', 'Никита', '::1', '2026-02-24 09:33:21'),
+(166, 'user', 'sms_template_add', 'Добавлен шаблон: Приветствие', 'Никита', '::1', '2026-02-24 09:33:24'),
+(167, 'user', 'sms_template_add', 'Добавлен шаблон: Приветствие', 'Никита', '::1', '2026-02-24 09:33:27'),
+(168, 'user', 'sms_template_add', 'Добавлен шаблон: Приветствие', 'Никита', '::1', '2026-02-24 09:33:30'),
+(169, 'user', 'sms_template_add', 'Добавлен шаблон: Приветствие', 'Никита', '::1', '2026-02-24 09:33:34'),
+(170, 'user', 'sms_send', 'Рассылка: 2 получателей', 'Никита', '::1', '2026-02-24 09:34:54'),
+(171, 'checkbox_templates', 'delete', 'Удален чекбокс-шаблон ID=2', 'Илья', '::1', '2026-02-24 09:39:08'),
+(172, 'checkbox_templates', 'update', 'Обновлен чекбокс-шаблон ID=1: Лава', 'Илья', '::1', '2026-02-24 10:08:40'),
+(173, 'checkbox_templates', 'update', 'Обновлен чекбокс-шаблон ID=1: Лава', 'Илья', '::1', '2026-02-24 10:31:48'),
+(174, 'backup', 'create', 'Создан бекап backup_2026-03-13_02-47-26.json', 'Илья', '::1', '2026-03-13 08:55:35'),
+(175, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-16 16:15:17'),
+(176, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:28:25'),
+(177, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:29:24'),
+(178, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:29:47'),
+(179, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:29:48'),
+(180, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:29:50'),
+(181, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:29:51'),
+(182, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:29:53'),
+(183, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:30:11'),
+(184, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:30:15'),
+(185, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:30:17'),
+(186, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:30:19'),
+(187, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:30:20'),
+(188, 'users', 'add_error', 'Ошибка добавления пользователя: Александр — Пароль должен содержать хотя бы один специальный символ', 'Илья', '::1', '2026-03-17 08:30:22'),
+(189, 'users', 'add', 'Добавлен пользователь: Александр, роль: user, телефон: +79039852242', 'Илья', '::1', '2026-03-17 08:31:15'),
+(190, 'users', 'update', 'Обновлен пользователь ID=15, имя: Александр, роль: user, телефон: +79039852242', 'Илья', '::1', '2026-03-17 08:31:32'),
+(191, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=15', 'Илья', '::1', '2026-03-17 08:31:33'),
+(192, 'users', 'update', 'Обновлен пользователь ID=15, имя: Александр, роль: user, телефон: +79039852242', 'Илья', '::1', '2026-03-17 08:39:32'),
+(193, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=15', 'Илья', '::1', '2026-03-17 08:39:34'),
+(194, 'users', 'delete', 'Удален пользователь ID=15', 'Илья', '::1', '2026-03-17 08:39:50'),
+(195, 'users', 'add', 'Добавлен пользователь: Александр, роль: user, телефон: +79039852242', 'Илья', '::1', '2026-03-17 08:40:16'),
+(196, 'users', 'update', 'Обновлен пользователь ID=16, имя: Александр, роль: user, телефон: +79039852242', 'Илья', '::1', '2026-03-17 08:40:30'),
+(197, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=16', 'Илья', '::1', '2026-03-17 08:40:32'),
+(198, 'users', 'update', 'Обновлен пользователь ID=16, имя: Александр, роль: user, телефон: +79039852242', 'Илья', '::1', '2026-03-17 08:42:41'),
+(199, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=16', 'Илья', '::1', '2026-03-17 08:42:43'),
+(200, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 08:43:52'),
+(201, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 09:04:05'),
+(202, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 09:15:03'),
+(203, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 09:15:31'),
+(204, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 09:17:17'),
+(205, 'checkbox_templates', 'add', 'Добавлен чекбокс-шаблон: По шахте Рубана на 1 предприятий', 'Илья', '::1', '2026-03-17 09:23:30'),
+(206, 'checkbox_templates', 'update', 'Обновлен чекбокс-шаблон ID=3: По шахте Кирова', 'Илья', '::1', '2026-03-17 09:28:05'),
+(207, 'users', 'update', 'Обновлен пользователь ID=16, имя: Александр, роль: recipient, телефон: +79039852242', 'Илья', '::1', '2026-03-17 09:49:38'),
+(208, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=16', 'Илья', '::1', '2026-03-17 09:49:40'),
+(209, 'checkbox_templates', 'update', 'Обновлен чекбокс-шаблон ID=1: Лава', 'Илья', '::1', '2026-03-17 09:50:47'),
+(210, 'checkbox_templates', 'update', 'Обновлен чекбокс-шаблон ID=3: По шахте Кирова', 'Илья', '::1', '2026-03-17 09:50:57'),
+(211, 'user', 'personal_message', 'Личное сообщение: Здравствуйте.; получателей: 1', 'Илья', '::1', '2026-03-17 09:53:08'),
+(212, 'messages', 'history_clear', 'История сообщений и личные сообщения очищены', 'Илья', '::1', '2026-03-17 09:53:26'),
+(213, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 09:54:07'),
+(214, 'users', 'delete', 'Удален пользователь ID=2', 'Илья', '::1', '2026-03-17 09:57:07'),
+(215, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 09:58:03'),
+(216, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 10:02:09'),
+(217, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:02:54'),
+(218, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:03:31'),
+(219, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:03:33'),
+(220, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:03:36'),
+(221, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:05:53'),
+(222, 'user', 'sms_send', 'Рассылка: 1 получателей', 'Никита', '::1', '2026-03-17 10:08:57'),
+(223, 'user', 'internal_message', 'Сообщение администратору (1 получат.)', 'Никита', '::1', '2026-03-17 10:33:45'),
+(224, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:46:22'),
+(225, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:47:25'),
+(226, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:47:27'),
+(227, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:49:34'),
+(228, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:52:26'),
+(229, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 10:52:27'),
+(230, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:02:09'),
+(231, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:07:51'),
+(232, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:08:40'),
+(233, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:12:59'),
+(234, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:13:24'),
+(235, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:16:46'),
+(236, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:16:48'),
+(237, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:20:56'),
+(238, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-17 11:22:33'),
+(239, 'users', 'add', 'Добавлен пользователь: Ирина, роль: recipient, телефон: +79875442334', 'Илья', '::1', '2026-03-18 08:15:32'),
+(240, 'users', 'update', 'Обновлен пользователь ID=17, имя: Ирина, роль: recipient, телефон: +79875442334', 'Илья', '::1', '2026-03-18 08:15:45'),
+(241, 'users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=17', 'Илья', '::1', '2026-03-18 08:15:45'),
+(242, 'messages', 'delete_personal', 'Удалено личное сообщение ID=50', 'Илья', '::1', '2026-03-18 08:16:53'),
+(243, 'messages', 'delete_personal', 'Удалено личное сообщение ID=47', 'Илья', '::1', '2026-03-18 08:16:55'),
+(244, 'user', 'sync_users', 'Синхронизировано: 0 пользователей', 'Никита', '::1', '2026-03-18 08:38:18'),
+(245, 'messages', 'history_clear', 'История сообщений и личные сообщения очищены', 'Илья', '::1', '2026-03-18 08:38:48'),
+(246, 'user', 'personal_message', 'Личное сообщение: ку; получателей: 1', 'Илья', '::1', '2026-03-18 08:47:52'),
+(247, 'messages', 'delete_personal', 'Удалено личное сообщение ID=52', 'Илья', '::1', '2026-03-18 08:48:39');
 
 -- --------------------------------------------------------
 
@@ -428,7 +508,7 @@ CREATE TABLE `users` (
   `Username` varchar(50) NOT NULL,
   `PhoneNumber` varchar(20) DEFAULT NULL,
   `PasswordHash` varchar(255) NOT NULL,
-  `Role` enum('user','admin') NOT NULL DEFAULT 'user',
+  `Role` enum('user','admin','recipient') NOT NULL DEFAULT 'user',
   `GroupID` int(2) DEFAULT NULL,
   `Status` enum('active','blocked') NOT NULL DEFAULT 'active',
   `PasswordCreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
@@ -443,10 +523,33 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`UserID`, `Username`, `PhoneNumber`, `PasswordHash`, `Role`, `GroupID`, `Status`, `PasswordCreatedAt`, `FailedLoginCount`, `LastFailedLoginAt`, `CreatedAt`, `UpdatedAt`) VALUES
-(2, 'user', NULL, '$2y$10$OMBKnLwQDY0GbdbQXnnI.eWi1XQ1gtfk5CCBsVdpvQy1Ho2RUpxzS', 'user', NULL, 'active', '2025-09-29 09:17:08', 0, '2025-10-01 14:47:50', '2025-09-29 09:17:08', '2025-10-01 14:48:53'),
-(11, 'Данил', '', '$2y$10$T5GvKgZuMEPNpUWYgckoJO1/QdvRFCFP72qGqSK2BTTvtmFmJ4Vz6', 'user', NULL, 'active', '2025-10-19 16:21:47', 0, NULL, '2025-10-19 16:21:47', '2025-12-11 10:12:18'),
-(12, 'Илья', '+79505850016', '$2y$10$4jUt4apTNGJeeycjO2QziedFNqb/ZLQ5jEpkLi7vAfF.FxxyWcxkm', 'admin', NULL, 'active', '2025-12-11 10:00:00', 0, '2025-12-12 09:23:11', '2025-11-24 19:34:00', '2025-12-16 09:58:00'),
-(13, 'Никита', '+79505850017', '$2y$10$tmPoJ5SpXKYiq7PsQcStseQZiwFtxjJL4OlKQFQXNjy3AfossHyta', 'user', NULL, 'active', '2025-12-11 15:52:31', 0, NULL, '2025-12-11 15:52:31', '2025-12-11 15:52:31');
+(13, 'Никита', '+79505850017', '$2y$10$Q0Xo5CNCzQxbn9/F6y896uZ7.EO9rmEdhJ8T2Btdsd4.ju4td1e7S', 'user', 5, 'active', '2025-12-11 15:52:31', 0, '2026-02-24 09:27:35', '2025-12-11 15:52:31', '2026-02-24 09:28:44'),
+(14, 'Илья', '+79505850016', '$2y$10$8wa6I8BV1.Vawj6P8H8hfeg9bsWrHpCfG6sp7r0Tfw8E.UrNHZHRK', 'admin', 5, 'active', '2026-02-15 00:00:00', 0, NULL, '2026-02-15 00:00:00', '2026-02-24 09:30:53'),
+(16, 'Александр', '+79039852242', '$2y$10$2FiDXj3UWpSEoqwPhmCBPOfFuZ2KyblGFkP/T6f0ghRCbQX74lTii', 'recipient', 5, 'active', '2026-03-17 08:40:15', 0, NULL, '2026-03-17 08:40:15', '2026-03-17 09:49:37'),
+(17, 'Ирина', '+79875442334', '$2y$10$xB5AEaXb8tLYoOPyoJcZcOGAHf3Ny/9j4hmwtIeFhtVhDoRr0j6FK', 'recipient', 2, 'active', '2026-03-18 08:15:32', 0, NULL, '2026-03-18 08:15:32', '2026-03-18 08:15:43');
+
+-- --------------------------------------------------------
+
+--
+-- Структура таблицы `user_companies`
+--
+
+CREATE TABLE `user_companies` (
+  `UserID` int(10) UNSIGNED NOT NULL,
+  `CompanyID` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Дамп данных таблицы `user_companies`
+--
+
+INSERT INTO `user_companies` (`UserID`, `CompanyID`) VALUES
+(13, 1),
+(13, 2),
+(14, 1),
+(14, 2),
+(16, 2),
+(17, 2);
 
 -- --------------------------------------------------------
 
@@ -467,7 +570,9 @@ CREATE TABLE `user_feedback` (
 --
 
 INSERT INTO `user_feedback` (`FeedbackID`, `Username`, `Status`, `Message`, `CreatedAt`) VALUES
-(1, 'user', 'Отказано', 'Потом сделаю', '2025-10-01 14:58:14');
+(1, 'user', 'Отказано', 'Потом сделаю', '2025-10-01 14:58:14'),
+(2, 'Никита', 'Новое', '!', '2026-03-18 08:22:47'),
+(3, 'Никита', 'Новое', 'Здрасте', '2026-03-18 08:38:15');
 
 -- --------------------------------------------------------
 
@@ -486,40 +591,14 @@ CREATE TABLE `user_messages` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Дамп данных таблицы `user_messages`
---
-
-INSERT INTO `user_messages` (`UserMessageID`, `SenderID`, `MessageID`, `RecipientID`, `SentDate`, `ReadStatus`, `ReadDate`) VALUES
-(1, 0, 10, 3, '2025-10-19 18:06:28', 'read', '2025-10-19 19:24:54'),
-(2, 0, 14, 5, '2025-10-19 19:07:29', 'read', '2025-10-19 20:20:07'),
-(3, 0, 15, 3, '2025-10-19 19:10:47', 'read', '2025-10-20 09:33:34'),
-(4, 0, 16, 5, '2025-10-20 10:14:24', 'read', '2025-10-20 10:14:43'),
-(5, 0, 17, 5, '2025-10-20 10:15:27', 'read', '2025-10-20 10:15:39'),
-(6, 0, 18, 5, '2025-10-20 10:26:22', 'unread', NULL),
-(7, 0, 19, 4, '2025-11-26 15:52:53', 'unread', NULL),
-(8, 0, 20, 4, '2025-12-11 10:00:44', 'unread', NULL),
-(9, 0, 21, 5, '2025-12-11 10:11:32', 'unread', NULL),
-(10, 0, 22, 6, '2025-12-11 10:12:45', 'read', '2025-12-11 13:36:58'),
-(11, 0, 23, 6, '2025-12-11 13:36:55', 'read', '2025-12-11 13:36:57'),
-(12, 0, 24, 6, '2025-12-11 13:47:43', 'unread', NULL),
-(13, 0, 25, 6, '2025-12-11 13:47:45', 'unread', NULL),
-(14, 0, 26, 6, '2025-12-11 13:47:49', 'unread', NULL),
-(15, 0, 27, 6, '2025-12-11 13:47:52', 'unread', NULL),
-(16, 0, 29, 1, '2025-12-11 16:48:08', 'unread', NULL),
-(17, 0, 30, 1, '2025-12-11 17:52:23', 'read', '2025-12-12 08:10:00'),
-(18, 0, 31, 1, '2025-12-12 10:03:50', 'unread', NULL),
-(19, 0, 32, 1, '2025-12-12 10:04:01', 'unread', NULL),
-(20, 0, 33, 1, '2025-12-12 10:04:49', 'unread', NULL),
-(21, 0, 34, 1, '2025-12-12 10:06:23', 'unread', NULL),
-(22, 0, 35, 1, '2025-12-15 08:25:24', 'unread', NULL),
-(23, 0, 36, 5, '2025-12-15 11:26:23', 'unread', NULL),
-(24, 0, 37, 5, '2025-12-15 11:26:29', 'unread', NULL),
-(25, 0, 38, 3, '2025-12-17 10:46:10', 'unread', NULL),
-(26, 0, 39, 5, '2025-12-17 10:52:15', 'unread', NULL);
-
---
 -- Индексы сохранённых таблиц
 --
+
+--
+-- Индексы таблицы `companies`
+--
+ALTER TABLE `companies`
+  ADD PRIMARY KEY (`CompanyID`);
 
 --
 -- Индексы таблицы `groups`
@@ -549,16 +628,17 @@ ALTER TABLE `recipients`
   ADD KEY `GroupID` (`GroupID`);
 
 --
+-- Индексы таблицы `sms_checkbox_templates`
+--
+ALTER TABLE `sms_checkbox_templates`
+  ADD PRIMARY KEY (`CheckboxTemplateID`),
+  ADD KEY `CompanyID` (`CompanyID`);
+
+--
 -- Индексы таблицы `sms_settings`
 --
 ALTER TABLE `sms_settings`
   ADD PRIMARY KEY (`setting_key`);
-
---
--- Индексы таблицы `companies`
---
-ALTER TABLE `companies`
-  ADD PRIMARY KEY (`CompanyID`);
 
 --
 -- Индексы таблицы `sms_templates`
@@ -582,6 +662,13 @@ ALTER TABLE `users`
   ADD KEY `fk_users_group` (`GroupID`);
 
 --
+-- Индексы таблицы `user_companies`
+--
+ALTER TABLE `user_companies`
+  ADD PRIMARY KEY (`UserID`,`CompanyID`),
+  ADD KEY `CompanyID` (`CompanyID`);
+
+--
 -- Индексы таблицы `user_feedback`
 --
 ALTER TABLE `user_feedback`
@@ -601,6 +688,12 @@ ALTER TABLE `user_messages`
 --
 
 --
+-- AUTO_INCREMENT для таблицы `companies`
+--
+ALTER TABLE `companies`
+  MODIFY `CompanyID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT для таблицы `groups`
 --
 ALTER TABLE `groups`
@@ -610,55 +703,55 @@ ALTER TABLE `groups`
 -- AUTO_INCREMENT для таблицы `messagelogs`
 --
 ALTER TABLE `messagelogs`
-  MODIFY `LogID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=46;
+  MODIFY `LogID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=68;
 
 --
 -- AUTO_INCREMENT для таблицы `messages`
 --
 ALTER TABLE `messages`
-  MODIFY `MessageID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `MessageID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=60;
 
 --
 -- AUTO_INCREMENT для таблицы `recipients`
 --
 ALTER TABLE `recipients`
-  MODIFY `RecipientID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `RecipientID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
--- AUTO_INCREMENT для таблицы `companies`
+-- AUTO_INCREMENT для таблицы `sms_checkbox_templates`
 --
-ALTER TABLE `companies`
-  MODIFY `CompanyID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+ALTER TABLE `sms_checkbox_templates`
+  MODIFY `CheckboxTemplateID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT для таблицы `sms_templates`
 --
 ALTER TABLE `sms_templates`
-  MODIFY `TemplateID` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `TemplateID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT для таблицы `system_logs`
 --
 ALTER TABLE `system_logs`
-  MODIFY `LogID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=145;
+  MODIFY `LogID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=248;
 
 --
 -- AUTO_INCREMENT для таблицы `users`
 --
 ALTER TABLE `users`
-  MODIFY `UserID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `UserID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT для таблицы `user_feedback`
 --
 ALTER TABLE `user_feedback`
-  MODIFY `FeedbackID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `FeedbackID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT для таблицы `user_messages`
 --
 ALTER TABLE `user_messages`
-  MODIFY `UserMessageID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `UserMessageID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
 
 --
 -- Ограничения внешнего ключа сохраненных таблиц
@@ -688,6 +781,13 @@ ALTER TABLE `sms_templates`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_group` FOREIGN KEY (`GroupID`) REFERENCES `groups` (`GroupID`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
+-- Ограничения внешнего ключа таблицы `user_companies`
+--
+ALTER TABLE `user_companies`
+  ADD CONSTRAINT `user_companies_ibfk_1` FOREIGN KEY (`UserID`) REFERENCES `users` (`UserID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `user_companies_ibfk_2` FOREIGN KEY (`CompanyID`) REFERENCES `companies` (`CompanyID`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

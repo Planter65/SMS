@@ -42,25 +42,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             echo json_encode(clearMessageHistory());
             exit;
         case 'add_user':
-            $username = trim($_POST['username'] ?? '');
-            $password = $_POST['password'] ?? '';
-            $role = $_POST['role'] ?? 'user';
-            $phoneNumber = trim($_POST['phoneNumber'] ?? '');
-            if ($username === '' || $password === '') {
-                echo json_encode(['success' => false, 'message' => 'Введите имя пользователя и пароль']);
-                exit;
+            try {
+                $username = trim($_POST['username'] ?? '');
+                $password = $_POST['password'] ?? '';
+                $role = $_POST['role'] ?? 'user';
+                $phoneNumber = trim($_POST['phoneNumber'] ?? '');
+                $groupID = isset($_POST['group_id']) ? $_POST['group_id'] : null;
+                if ($username === '') {
+                    echo json_encode(['success' => false, 'message' => 'Введите имя пользователя']);
+                    exit;
+                }
+                if ($role !== 'recipient' && $password === '') {
+                    echo json_encode(['success' => false, 'message' => 'Для ролей Пользователь и Администратор требуется пароль']);
+                    exit;
+                }
+                $res = registerUser($username, $password ?: 'x', $role, $phoneNumber);
+                if (!is_array($res)) {
+                    $res = ['success' => false, 'message' => 'Ошибка при создании пользователя'];
+                }
+                if (!empty($res['success']) && isset($res['user_id'])) {
+                    $phoneInfo = !empty($phoneNumber) ? ', телефон: ' . $phoneNumber : '';
+                    logSystemAction('users', 'add', 'Добавлен пользователь: ' . $username . ', роль: ' . $role . $phoneInfo);
+                    $companyIds = isset($_POST['company_ids']) ? $_POST['company_ids'] : [];
+                    if (!is_array($companyIds)) {
+                        $companyIds = $companyIds !== '' ? [(int)$companyIds] : [];
+                    }
+                    $companyIds = array_values(array_filter(array_map('intval', $companyIds), function ($id) { return $id > 0; }));
+                    if (!empty($companyIds)) {
+                        setUserCompanies((int)$res['user_id'], $companyIds);
+                    }
+
+                    // Если группа передана при создании — сохраняем её в users
+                    if ($groupID !== null && $groupID !== '') {
+                        $conn = connectToDatabase();
+                        $gidVal = intval($groupID);
+                        $uidVal = (int)$res['user_id'];
+                        $stmt = $conn->prepare("UPDATE users SET GroupID = NULLIF(?, -1) WHERE UserID = ?");
+                        $stmt->bind_param("ii", $gidVal, $uidVal);
+                        @$stmt->execute();
+                        $stmt->close();
+                        $conn->close();
+                    }
+
+                    // Автодобавление/обновление в recipients для нового пользователя
+                    $conn = connectToDatabase();
+                    $uidVal = (int)$res['user_id'];
+                    $stmt = $conn->prepare("SELECT Username, PhoneNumber, GroupID FROM users WHERE UserID = ? LIMIT 1");
+                    $stmt->bind_param("i", $uidVal);
+                    $stmt->execute();
+                    $urow = $stmt->get_result()->fetch_assoc();
+                    $stmt->close();
+                    if ($urow) {
+                        $un = trim((string)($urow['Username'] ?? ''));
+                        $ph = trim((string)($urow['PhoneNumber'] ?? ''));
+                        $gid = isset($urow['GroupID']) && $urow['GroupID'] !== '' && $urow['GroupID'] !== null ? (int)$urow['GroupID'] : null;
+                        upsertRecipientForUser($conn, $un, $un, $ph, $gid);
+                    }
+                    $conn->close();
+                } else {
+                    logSystemAction('users', 'add_error', 'Ошибка добавления пользователя: ' . $username . ' — ' . ($res['message'] ?? ''));
+                }
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode($res);
+            } catch (Exception $e) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()]);
             }
-            $res = registerUser($username, $password, $role, $phoneNumber);
-            if (is_array($res) && !empty($res['success'])) {
-                $phoneInfo = !empty($phoneNumber) ? ', телефон: ' . $phoneNumber : '';
-                logSystemAction('users', 'add', 'Добавлен пользователь: ' . $username . ', роль: ' . $role . $phoneInfo);
-            } else {
-                logSystemAction('users', 'add_error', 'Ошибка добавления пользователя: ' . $username);
-            }
-            echo json_encode($res);
             exit;
         case 'get_users':
-            echo json_encode(['success' => true, 'data' => fetchUsers()]);
+            echo json_encode(['success' => true, 'data' => fetchUsersWithCompanies(), 'companies' => getCompanies()]);
             exit;
         case 'get_recipients':
             echo json_encode(['success' => true, 'data' => fetchRecipients()]);
@@ -91,7 +141,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 exit;
             }
             
-            echo json_encode(updateUserById($id, $username, $password, $role, $status, $phoneNumber));
+            $groupID = isset($_POST['group_id']) ? $_POST['group_id'] : null;
+            $updateResult = updateUserById($id, $username, $password, $role, $status, $phoneNumber, $groupID);
+            if (is_array($updateResult) && !empty($updateResult['success'])) {
+                $companyIds = isset($_POST['company_ids']) ? (is_array($_POST['company_ids']) ? $_POST['company_ids'] : []) : [];
+                $companyIds = array_map('intval', $companyIds);
+                $companyIds = array_filter($companyIds, function ($id) { return $id > 0; });
+                setUserCompanies($id, array_values($companyIds));
+                logSystemAction('users', 'update_companies', 'Обновлена привязка предприятий для пользователя ID=' . $id);
+            }
+            echo json_encode($updateResult);
             exit;
         case 'get_system_logs':
             echo json_encode(['success' => true, 'data' => fetchSystemLogs()]);
@@ -116,13 +175,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             echo json_encode(sendUserMessage($_POST));
             exit;
         case 'get_user_messages':
-            echo json_encode(['success' => true, 'data' => fetchUserMessages()]);
+            $filter = $_POST['filter'] ?? 'all';
+            echo json_encode(['success' => true, 'data' => fetchUserMessages($filter)]);
             exit;
         case 'update_read_status':
             echo json_encode(updateMessageReadStatus($_POST));
             exit;
         case 'clear_system_logs':
             echo json_encode(clearSystemLogs());
+            exit;
+        case 'delete_user_message':
+            echo json_encode(deleteUserMessage($_POST));
+            exit;
+        case 'clear_personal_messages':
+            echo json_encode(clearPersonalMessagesForCurrentUser());
             exit;
         case 'add_sms_template':
             echo json_encode(addSmsTemplate($_POST));
@@ -134,11 +200,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             echo json_encode(deleteSmsTemplate($_POST));
             exit;
         case 'get_sms_templates':
-            echo json_encode(['success' => true, 'data' => fetchSmsTemplates()]);
+            echo json_encode(['success' => true, 'data' => fetchSmsTemplatesAll(), 'companies' => getCompanies()]);
             exit;
         case 'get_sms_template':
             $id = intval($_POST['id'] ?? 0);
-            echo json_encode(['success' => true, 'data' => getSmsTemplateById($id)]);
+            $companyId = isset($_POST['company_id']) ? intval($_POST['company_id']) : null;
+            echo json_encode(['success' => true, 'data' => getSmsTemplateById($id, $companyId)]);
+            exit;
+        case 'get_checkbox_templates':
+            $companyFilter = isset($_POST['company_filter']) ? intval($_POST['company_filter']) : null;
+            echo json_encode(['success' => true, 'data' => fetchCheckboxTemplatesAll($companyFilter), 'companies' => getCompanies()]);
+            exit;
+        case 'get_checkbox_template':
+            $id = intval($_POST['id'] ?? 0);
+            $companyId = isset($_POST['company_id']) ? intval($_POST['company_id']) : null;
+            echo json_encode(['success' => true, 'data' => getCheckboxTemplateById($id, $companyId)]);
+            exit;
+        case 'save_checkbox_template':
+            echo json_encode(saveCheckboxTemplate($_POST));
+            exit;
+        case 'delete_checkbox_template':
+            echo json_encode(deleteCheckboxTemplate($_POST));
+            exit;
+        case 'get_companies':
+            echo json_encode(['success' => true, 'data' => getCompanies()]);
+            exit;
+        case 'add_company':
+            $companyName = trim($_POST['company_name'] ?? '');
+            $res = addCompany($companyName);
+            if (is_array($res) && !empty($res['success'])) {
+                logSystemAction('companies', 'add', 'Добавлено предприятие: ' . $companyName);
+            }
+            echo json_encode($res);
+            exit;
+        case 'update_company':
+            $companyId = (int)($_POST['company_id'] ?? 0);
+            $companyName = trim($_POST['company_name'] ?? '');
+            $res = updateCompany($companyId, $companyName);
+            if (is_array($res) && !empty($res['success'])) {
+                logSystemAction('companies', 'update', 'Обновлено предприятие ID=' . $companyId . ': ' . $companyName);
+            }
+            echo json_encode($res);
             exit;
     }
 }
@@ -231,6 +333,7 @@ function fetchMessageHistory() {
     $sql = "
         SELECT ml.LogID,
                m.Text AS MessageText,
+               COALESCE(u.Username, 'Администратор') AS SenderName,
                r.FullName AS RecipientName,
                g.GroupName AS GroupName,
                ml.SentDate
@@ -238,6 +341,8 @@ function fetchMessageHistory() {
         JOIN messages m   ON m.MessageID = ml.MessageID
         JOIN recipients r ON r.RecipientID = ml.RecipientID
         LEFT JOIN groups g ON g.GroupID = r.GroupID
+        LEFT JOIN user_messages um ON um.MessageID = ml.MessageID AND um.RecipientID = ml.RecipientID
+        LEFT JOIN users u ON u.UserID = um.SenderID
         ORDER BY ml.SentDate DESC, ml.LogID DESC
         LIMIT 500
     ";
@@ -251,12 +356,78 @@ function fetchMessageHistory() {
 function clearMessageHistory() {
     try {
         $conn = connectToDatabase();
+        // Порядок: сначала user_messages (ссылается на messages), затем messagelogs, затем messages
+        $conn->query("DELETE FROM user_messages");
         $conn->query("DELETE FROM messagelogs");
+        $conn->query("DELETE FROM messages");
         $conn->close();
-        logSystemAction('messages', 'history_clear', 'История сообщений очищена');
+        logSystemAction('messages', 'history_clear', 'История сообщений и личные сообщения очищены');
         return ['success' => true, 'message' => 'История сообщений очищена'];
     } catch (Exception $e) {
         return ['success' => false, 'message' => 'Ошибка очистки истории: ' . $e->getMessage()];
+    }
+}
+
+// Очистка личных сообщений только для текущего администратора / пользователя
+function clearPersonalMessagesForCurrentUser() {
+    try {
+        $conn = connectToDatabase();
+        $user = getCurrentUser();
+        $currentUserId = intval($user['id'] ?? 0);
+        $currentUsername = $user['username'] ?? '';
+        if ($currentUserId <= 0 || $currentUsername === '') {
+            return ['success' => false, 'message' => 'Не удалось определить текущего пользователя'];
+        }
+
+        // Находим RecipientID текущего пользователя (если он есть в recipients)
+        $recipientId = null;
+        $stmt = $conn->prepare("SELECT RecipientID FROM recipients WHERE FullName = ? LIMIT 1");
+        $stmt->bind_param("s", $currentUsername);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($res && isset($res['RecipientID'])) {
+            $recipientId = (int)$res['RecipientID'];
+        }
+
+        // Удаляем только те записи из user_messages, где текущий пользователь — отправитель или получатель
+        if ($recipientId !== null) {
+            $stmt = $conn->prepare("DELETE FROM user_messages WHERE SenderID = ? OR RecipientID = ?");
+            $stmt->bind_param("ii", $currentUserId, $recipientId);
+        } else {
+            $stmt = $conn->prepare("DELETE FROM user_messages WHERE SenderID = ?");
+            $stmt->bind_param("i", $currentUserId);
+        }
+        $stmt->execute();
+        $deleted = $stmt->affected_rows;
+        $stmt->close();
+        $conn->close();
+
+        logSystemAction('messages', 'personal_history_clear', 'Очищены личные сообщения пользователя ID=' . $currentUserId);
+        return ['success' => true, 'message' => 'Личные сообщения очищены (удалено записей: ' . max(0, $deleted) . ')'];
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка очистки личных сообщений: ' . $e->getMessage()];
+    }
+}
+
+function deleteUserMessage($data) {
+    $id = isset($data['user_message_id']) ? intval($data['user_message_id']) : 0;
+    if ($id <= 0) {
+        return ['success' => false, 'message' => 'Некорректный ID сообщения'];
+    }
+    try {
+        $conn = connectToDatabase();
+        $stmt = $conn->prepare("DELETE FROM user_messages WHERE UserMessageID = ?");
+        $stmt->bind_param("i", $id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        $conn->close();
+        if ($ok) {
+            logSystemAction('messages', 'delete_personal', 'Удалено личное сообщение ID=' . $id);
+        }
+        return ['success' => (bool)$ok, 'message' => $ok ? 'Сообщение удалено' : 'Не удалось удалить'];
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()];
     }
 }
 
@@ -273,12 +444,26 @@ function fetchStatistics() {
 
 function fetchUsers() {
     $conn = connectToDatabase();
-    $sql = "SELECT UserID, Username, PhoneNumber, Role, Status, CreatedAt FROM users ORDER BY UserID DESC";
+    $sql = "SELECT u.UserID, u.Username, u.PhoneNumber, u.Role, u.Status, u.CreatedAt, u.GroupID, g.GroupName 
+            FROM users u 
+            LEFT JOIN groups g ON u.GroupID = g.GroupID 
+            ORDER BY u.UserID DESC";
     $result = $conn->query($sql);
     $rows = [];
     while ($row = $result->fetch_assoc()) { $rows[] = $row; }
     $conn->close();
     return $rows;
+}
+
+function fetchUsersWithCompanies() {
+    $users = fetchUsers();
+    foreach ($users as &$u) {
+        $companies = getCompaniesForUser($u['UserID']);
+        $u['CompanyIDs'] = array_column($companies, 'CompanyID');
+        $u['CompanyNames'] = implode(', ', array_column($companies, 'CompanyName'));
+    }
+    unset($u);
+    return $users;
 }
 
 function fetchRecipients() {
@@ -296,6 +481,77 @@ function fetchRecipients() {
     return $rows;
 }
 
+/**
+ * Добавляет или обновляет запись в recipients для пользователя.
+ * Идентификация идёт по FullName = Username (как и в существующей синхронизации).
+ *
+ * @param mysqli $conn Открытое соединение с БД
+ * @param string $oldUsername старое имя (нужно при переименовании)
+ * @param string $newUsername новое имя пользователя
+ * @param string $phone номер телефона (должен быть непустым для вставки)
+ * @param int|null $groupID группа (nullable)
+ */
+function upsertRecipientForUser(mysqli $conn, string $oldUsername, string $newUsername, string $phone, ?int $groupID): void {
+    $oldUsername = trim($oldUsername);
+    $newUsername = trim($newUsername);
+    $phone = trim($phone);
+    if ($newUsername === '' || $phone === '') {
+        // recipients.PhoneNumber NOT NULL — без телефона запись не создаём
+        return;
+    }
+
+    $check = $conn->prepare("SELECT RecipientID FROM recipients WHERE FullName = ? LIMIT 1");
+    $check->bind_param("s", $oldUsername);
+    $check->execute();
+    $existing = $check->get_result()->fetch_assoc();
+    $check->close();
+
+    if ($existing && isset($existing['RecipientID'])) {
+        $rid = (int)$existing['RecipientID'];
+        if ($groupID === null) {
+            $stmt = $conn->prepare("UPDATE recipients SET PhoneNumber = ?, FullName = ? WHERE RecipientID = ?");
+            $stmt->bind_param("ssi", $phone, $newUsername, $rid);
+        } else {
+            $stmt = $conn->prepare("UPDATE recipients SET PhoneNumber = ?, FullName = ?, GroupID = ? WHERE RecipientID = ?");
+            $stmt->bind_param("ssii", $phone, $newUsername, $groupID, $rid);
+        }
+        @$stmt->execute();
+        $stmt->close();
+        return;
+    }
+
+    // Если по старому имени не нашли — пробуем по новому (на случай повторного апсёрта)
+    $check2 = $conn->prepare("SELECT RecipientID FROM recipients WHERE FullName = ? LIMIT 1");
+    $check2->bind_param("s", $newUsername);
+    $check2->execute();
+    $existing2 = $check2->get_result()->fetch_assoc();
+    $check2->close();
+    if ($existing2 && isset($existing2['RecipientID'])) {
+        $rid = (int)$existing2['RecipientID'];
+        if ($groupID === null) {
+            $stmt = $conn->prepare("UPDATE recipients SET PhoneNumber = ? WHERE RecipientID = ?");
+            $stmt->bind_param("si", $phone, $rid);
+        } else {
+            $stmt = $conn->prepare("UPDATE recipients SET PhoneNumber = ?, GroupID = ? WHERE RecipientID = ?");
+            $stmt->bind_param("sii", $phone, $groupID, $rid);
+        }
+        @$stmt->execute();
+        $stmt->close();
+        return;
+    }
+
+    // Вставка
+    if ($groupID === null) {
+        $stmt = $conn->prepare("INSERT INTO recipients (PhoneNumber, FullName, GroupID) VALUES (?, ?, NULL)");
+        $stmt->bind_param("ss", $phone, $newUsername);
+    } else {
+        $stmt = $conn->prepare("INSERT INTO recipients (PhoneNumber, FullName, GroupID) VALUES (?, ?, ?)");
+        $stmt->bind_param("ssi", $phone, $newUsername, $groupID);
+    }
+    @$stmt->execute();
+    $stmt->close();
+}
+
 function deleteUserById($id) {
     $conn = connectToDatabase();
     $stmt = $conn->prepare("DELETE FROM users WHERE UserID = ?");
@@ -306,12 +562,12 @@ function deleteUserById($id) {
     return ['success' => $ok, 'message' => $ok ? 'Пользователь удален' : 'Не удалось удалить пользователя'];
 }
 
-function updateUserById($id, $username, $password, $role, $status, $phoneNumber = '') {
+function updateUserById($id, $username, $password, $role, $status, $phoneNumber = '', $groupID = null) {
     try {
         $conn = connectToDatabase();
         
         // Проверяем, существует ли пользователь
-        $check_stmt = $conn->prepare("SELECT UserID FROM users WHERE UserID = ?");
+        $check_stmt = $conn->prepare("SELECT UserID, Username FROM users WHERE UserID = ?");
         $check_stmt->bind_param("i", $id);
         $check_stmt->execute();
         $existing = $check_stmt->get_result()->fetch_assoc();
@@ -321,6 +577,7 @@ function updateUserById($id, $username, $password, $role, $status, $phoneNumber 
             $conn->close();
             return ['success' => false, 'message' => 'Пользователь не найден'];
         }
+        $oldUsername = strval($existing['Username'] ?? '');
         
         // Проверяем, не занято ли имя пользователя другим пользователем
         $check_username_stmt = $conn->prepare("SELECT UserID FROM users WHERE Username = ? AND UserID != ?");
@@ -347,27 +604,30 @@ function updateUserById($id, $username, $password, $role, $status, $phoneNumber 
             }
         }
         
-        // Обновляем пользователя
+        $groupIDVal = ($groupID !== null && $groupID !== '') ? intval($groupID) : -1;
         if (!empty($password)) {
-            // Если пароль указан, обновляем с паролем
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("UPDATE users SET Username = ?, PasswordHash = ?, Role = ?, Status = ?, PhoneNumber = ? WHERE UserID = ?");
-            $stmt->bind_param("sssssi", $username, $hashed_password, $role, $status, $normalizedPhone, $id);
+            $stmt = $conn->prepare("UPDATE users SET Username = ?, PasswordHash = ?, Role = ?, Status = ?, PhoneNumber = ?, GroupID = NULLIF(?, -1) WHERE UserID = ?");
+            $stmt->bind_param("sssssii", $username, $hashed_password, $role, $status, $normalizedPhone, $groupIDVal, $id);
         } else {
-            // Если пароль не указан, обновляем без пароля
-            $stmt = $conn->prepare("UPDATE users SET Username = ?, Role = ?, Status = ?, PhoneNumber = ? WHERE UserID = ?");
-            $stmt->bind_param("ssssi", $username, $role, $status, $normalizedPhone, $id);
+            $stmt = $conn->prepare("UPDATE users SET Username = ?, Role = ?, Status = ?, PhoneNumber = ?, GroupID = NULLIF(?, -1) WHERE UserID = ?");
+            $stmt->bind_param("ssssii", $username, $role, $status, $normalizedPhone, $groupIDVal, $id);
         }
         
         $ok = $stmt->execute();
         $stmt->close();
-        $conn->close();
         
         if ($ok) {
+            // Автообновление recipients для пользователя (включая переименование)
+            $gidForRecipient = ($groupID !== null && $groupID !== '') ? intval($groupID) : null;
+            upsertRecipientForUser($conn, $oldUsername, $username, $normalizedPhone, $gidForRecipient);
+            $conn->close();
+
             $phoneInfo = !empty($normalizedPhone) ? ', телефон: ' . $normalizedPhone : '';
             logSystemAction('users', 'update', 'Обновлен пользователь ID=' . $id . ', имя: ' . $username . ', роль: ' . $role . $phoneInfo);
             return ['success' => true, 'message' => 'Пользователь успешно обновлен'];
         } else {
+            $conn->close();
             return ['success' => false, 'message' => 'Не удалось обновить пользователя'];
         }
     } catch (Exception $e) {
@@ -378,7 +638,7 @@ function updateUserById($id, $username, $password, $role, $status, $phoneNumber 
 
 // Журнал действий системы
 function ensureSystemLogsTable($conn) {
-    $conn->query("CREATE TABLE IF NOT EXISTS system_logs (
+    $sql = "CREATE TABLE IF NOT EXISTS system_logs (
         LogID INT AUTO_INCREMENT PRIMARY KEY,
         Category VARCHAR(50) NOT NULL,
         Action VARCHAR(50) NOT NULL,
@@ -386,22 +646,34 @@ function ensureSystemLogsTable($conn) {
         PerformedBy VARCHAR(100),
         IPAddress VARCHAR(45),
         CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    if (!$conn->query($sql)) {
+        error_log('admin ensureSystemLogsTable failed: ' . $conn->error);
+    }
 }
 
 function logSystemAction($category, $action, $details = '') {
     try {
         $conn = connectToDatabase();
         ensureSystemLogsTable($conn);
+        $conn->set_charset('utf8mb4');
         $user = function_exists('getCurrentUser') ? getCurrentUser() : null;
         $performedBy = is_array($user) && isset($user['username']) ? $user['username'] : 'system';
         $ip = $_SERVER['REMOTE_ADDR'] ?? '';
         $stmt = $conn->prepare("INSERT INTO system_logs (Category, Action, Details, PerformedBy, IPAddress) VALUES (?, ?, ?, ?, ?)");
+        if (!$stmt) {
+            error_log('admin logSystemAction prepare failed: ' . $conn->error);
+            $conn->close();
+            return;
+        }
         $stmt->bind_param("sssss", $category, $action, $details, $performedBy, $ip);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            error_log('admin logSystemAction execute failed: ' . $stmt->error);
+        }
+        $stmt->close();
         $conn->close();
     } catch (Exception $e) {
-        // no-op to avoid breaking main flow
+        error_log('admin logSystemAction exception: ' . $e->getMessage());
     }
 }
 
@@ -430,27 +702,36 @@ function clearSystemLogs() {
     }
 }
 
-// Бекап базы данных (JSON файлы в папке backups)
+// Бекап базы данных (JSON файлы в папке backups) — актуальная структура БД
 function createDatabaseBackup() {
     try {
         $conn = connectToDatabase();
         $data = [];
         $tables = [
-            'recipients' => 'SELECT * FROM recipients',
             'groups' => 'SELECT * FROM groups',
+            'recipients' => 'SELECT * FROM recipients',
             'messages' => 'SELECT * FROM messages',
             'messagelogs' => 'SELECT * FROM messagelogs ORDER BY LogID DESC',
-            'users' => 'SELECT UserID, Username, Role, Status, CreatedAt FROM users'
+            'users' => 'SELECT * FROM users',
+            'companies' => 'SELECT * FROM companies',
+            'user_companies' => 'SELECT * FROM user_companies',
+            'user_messages' => 'SELECT * FROM user_messages ORDER BY UserMessageID DESC',
+            'system_logs' => 'SELECT * FROM system_logs ORDER BY LogID DESC LIMIT 5000',
+            'sms_templates' => 'SELECT * FROM sms_templates ORDER BY TemplateID DESC',
+            'sms_checkbox_templates' => 'SELECT * FROM sms_checkbox_templates ORDER BY CheckboxTemplateID DESC',
         ];
-        // user_feedback (если есть)
         $res = $conn->query("SHOW TABLES LIKE 'user_feedback'");
         if ($res && $res->num_rows > 0) {
             $tables['user_feedback'] = 'SELECT * FROM user_feedback ORDER BY CreatedAt DESC';
         }
+        $res = $conn->query("SHOW TABLES LIKE 'sms_settings'");
+        if ($res && $res->num_rows > 0) {
+            $tables['sms_settings'] = 'SELECT * FROM sms_settings';
+        }
 
         foreach ($tables as $name => $sql) {
             $rows = [];
-            if ($result = $conn->query($sql)) {
+            if ($result = @$conn->query($sql)) {
                 while ($row = $result->fetch_assoc()) { $rows[] = $row; }
             }
             $data[$name] = $rows;
@@ -519,6 +800,12 @@ function importDatabaseBackup() {
             'logs' => ($_POST['import_logs'] ?? '1') === '1',
             'users' => ($_POST['import_users'] ?? '0') === '1',
             'feedback' => ($_POST['import_feedback'] ?? '1') === '1',
+            'companies' => ($_POST['import_companies'] ?? '1') === '1',
+            'user_companies' => ($_POST['import_user_companies'] ?? '1') === '1',
+            'user_messages' => ($_POST['import_user_messages'] ?? '1') === '1',
+            'system_logs' => ($_POST['import_system_logs'] ?? '0') === '1',
+            'sms_templates' => ($_POST['import_sms_templates'] ?? '1') === '1',
+            'sms_checkbox_templates' => ($_POST['import_sms_checkbox_templates'] ?? '1') === '1',
         ];
 
         $raw = file_get_contents($_FILES['file']['tmp_name']);
@@ -535,13 +822,19 @@ function importDatabaseBackup() {
 
         $result = ['inserted' => [], 'skipped' => []];
 
-        // REPLACE mode: clear tables in safe order
+        // REPLACE mode: clear tables in safe order (FK: user_messages -> messages; messagelogs -> messages)
         if ($mode === 'replace') {
+            if ($opts['user_messages']) { @$conn->query('DELETE FROM user_messages'); }
             if ($opts['logs']) { @$conn->query('DELETE FROM messagelogs'); }
             if ($opts['messages']) { @$conn->query('DELETE FROM messages'); }
             if ($opts['recipients']) { @$conn->query('DELETE FROM recipients'); }
             if ($opts['groups']) { @$conn->query('DELETE FROM groups'); }
-            if ($opts['feedback']) { @$conn->query("SHOW TABLES LIKE 'user_feedback'"); $conn->query('DELETE FROM user_feedback'); }
+            if ($opts['feedback']) { $r = @$conn->query("SHOW TABLES LIKE 'user_feedback'"); if ($r && $r->num_rows > 0) @$conn->query('DELETE FROM user_feedback'); }
+            if ($opts['system_logs']) { $r = @$conn->query("SHOW TABLES LIKE 'system_logs'"); if ($r && $r->num_rows > 0) @$conn->query('DELETE FROM system_logs'); }
+            if ($opts['user_companies']) { @$conn->query('DELETE FROM user_companies'); }
+            if ($opts['sms_templates']) { $r = @$conn->query("SHOW TABLES LIKE 'sms_templates'"); if ($r && $r->num_rows > 0) @$conn->query('DELETE FROM sms_templates'); }
+            if ($opts['sms_checkbox_templates']) { $r = @$conn->query("SHOW TABLES LIKE 'sms_checkbox_templates'"); if ($r && $r->num_rows > 0) @$conn->query('DELETE FROM sms_checkbox_templates'); }
+            if ($opts['companies']) { @$conn->query('DELETE FROM companies'); }
             // Users: do not delete for safety
         }
 
@@ -628,20 +921,169 @@ function importDatabaseBackup() {
             }
         }
 
-        // Users (append only for safety)
+        // Users (append only for safety) — полная структура БД
         if ($opts['users'] && !empty($data['users']) && is_array($data['users'])) {
-            $stmt = $conn->prepare('INSERT INTO users (UserID, Username, Role, Status, CreatedAt) VALUES (?, ?, ?, ?, ?)');
             foreach ($data['users'] as $row) {
                 $uid = intval($row['UserID'] ?? 0);
                 $un = strval($row['Username'] ?? '');
+                if ($uid <= 0 || $un === '') { $result['skipped'][] = ['users' => $row]; continue; }
+                $phone = isset($row['PhoneNumber']) ? $row['PhoneNumber'] : null;
+                $hash = strval($row['PasswordHash'] ?? '');
+                if ($hash === '') { $hash = password_hash('change_me_after_restore', PASSWORD_DEFAULT); }
                 $role = strval($row['Role'] ?? 'user');
                 $st = strval($row['Status'] ?? 'active');
-                $dt = strval($row['CreatedAt'] ?? date('Y-m-d H:i:s'));
-                if ($uid <= 0 || $un === '') { $result['skipped'][] = ['users' => $row]; continue; }
-                $stmt->bind_param('issss', $uid, $un, $role, $st, $dt);
+                $gid = isset($row['GroupID']) && $row['GroupID'] !== '' && $row['GroupID'] !== null ? intval($row['GroupID']) : null;
+                $pwdAt = strval($row['PasswordCreatedAt'] ?? date('Y-m-d H:i:s'));
+                $failCnt = intval($row['FailedLoginCount'] ?? 0);
+                $lastFail = isset($row['LastFailedLoginAt']) && $row['LastFailedLoginAt'] !== '' && $row['LastFailedLoginAt'] !== null ? strval($row['LastFailedLoginAt']) : null;
+                $created = strval($row['CreatedAt'] ?? date('Y-m-d H:i:s'));
+                $updated = strval($row['UpdatedAt'] ?? date('Y-m-d H:i:s'));
+                if ($gid === null) {
+                    $stmt = $conn->prepare('INSERT INTO users (UserID, Username, PhoneNumber, PasswordHash, Role, GroupID, Status, PasswordCreatedAt, FailedLoginCount, LastFailedLoginAt, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)');
+                    $stmt->bind_param('issssssisss', $uid, $un, $phone, $hash, $role, $st, $pwdAt, $failCnt, $lastFail, $created, $updated);
+                } else {
+                    $stmt = $conn->prepare('INSERT INTO users (UserID, Username, PhoneNumber, PasswordHash, Role, GroupID, Status, PasswordCreatedAt, FailedLoginCount, LastFailedLoginAt, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                    $stmt->bind_param('issssisissss', $uid, $un, $phone, $hash, $role, $gid, $st, $pwdAt, $failCnt, $lastFail, $created, $updated);
+                }
                 @$stmt->execute();
             }
             $result['inserted']['users'] = count($data['users']);
+        }
+
+        // Companies
+        if ($opts['companies'] && !empty($data['companies']) && is_array($data['companies'])) {
+            $stmt = $conn->prepare('INSERT INTO companies (CompanyID, CompanyName) VALUES (?, ?)');
+            foreach ($data['companies'] as $row) {
+                $cid = intval($row['CompanyID'] ?? 0);
+                $cname = strval($row['CompanyName'] ?? '');
+                if ($cid <= 0 || $cname === '') { $result['skipped'][] = ['companies' => $row]; continue; }
+                $stmt->bind_param('is', $cid, $cname);
+                @$stmt->execute();
+            }
+            $result['inserted']['companies'] = count($data['companies']);
+        }
+
+        // User_companies
+        if ($opts['user_companies'] && !empty($data['user_companies']) && is_array($data['user_companies'])) {
+            $stmt = $conn->prepare('INSERT INTO user_companies (UserID, CompanyID) VALUES (?, ?)');
+            foreach ($data['user_companies'] as $row) {
+                $uid = intval($row['UserID'] ?? 0);
+                $cid = intval($row['CompanyID'] ?? 0);
+                if ($uid <= 0 || $cid <= 0) { $result['skipped'][] = ['user_companies' => $row]; continue; }
+                $stmt->bind_param('ii', $uid, $cid);
+                @$stmt->execute();
+            }
+            $result['inserted']['user_companies'] = count($data['user_companies']);
+        }
+
+        // User_messages
+        if ($opts['user_messages'] && !empty($data['user_messages']) && is_array($data['user_messages'])) {
+            $stmtWith = $conn->prepare('INSERT INTO user_messages (UserMessageID, SenderID, MessageID, RecipientID, SentDate, ReadStatus, ReadDate) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $stmtNull = $conn->prepare('INSERT INTO user_messages (UserMessageID, SenderID, MessageID, RecipientID, SentDate, ReadStatus, ReadDate) VALUES (?, ?, ?, ?, ?, ?, NULL)');
+            foreach ($data['user_messages'] as $row) {
+                $umid = intval($row['UserMessageID'] ?? 0);
+                $sid = intval($row['SenderID'] ?? 0);
+                $mid = intval($row['MessageID'] ?? 0);
+                $rid = intval($row['RecipientID'] ?? 0);
+                $sent = strval($row['SentDate'] ?? date('Y-m-d H:i:s'));
+                $readSt = strval($row['ReadStatus'] ?? 'unread');
+                $readDt = isset($row['ReadDate']) && $row['ReadDate'] !== '' && $row['ReadDate'] !== null ? strval($row['ReadDate']) : null;
+                if ($umid <= 0 || $mid <= 0 || $rid <= 0) { $result['skipped'][] = ['user_messages' => $row]; continue; }
+                if ($readDt !== null) {
+                    $stmtWith->bind_param('iiiisss', $umid, $sid, $mid, $rid, $sent, $readSt, $readDt);
+                    @$stmtWith->execute();
+                } else {
+                    $stmtNull->bind_param('iiiiss', $umid, $sid, $mid, $rid, $sent, $readSt);
+                    @$stmtNull->execute();
+                }
+            }
+            $result['inserted']['user_messages'] = count($data['user_messages']);
+        }
+
+        // System_logs
+        if ($opts['system_logs'] && !empty($data['system_logs']) && is_array($data['system_logs'])) {
+            $res = $conn->query("SHOW TABLES LIKE 'system_logs'");
+            if ($res && $res->num_rows > 0) {
+                $stmt = $conn->prepare('INSERT INTO system_logs (LogID, Category, Action, Details, PerformedBy, IPAddress, CreatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                foreach ($data['system_logs'] as $row) {
+                    $lid = intval($row['LogID'] ?? 0);
+                    $cat = strval($row['Category'] ?? '');
+                    $act = strval($row['Action'] ?? '');
+                    $det = isset($row['Details']) ? $row['Details'] : null;
+                    $by = isset($row['PerformedBy']) ? $row['PerformedBy'] : null;
+                    $ip = isset($row['IPAddress']) ? $row['IPAddress'] : null;
+                    $dt = strval($row['CreatedAt'] ?? date('Y-m-d H:i:s'));
+                    if ($lid <= 0) { $result['skipped'][] = ['system_logs' => $row]; continue; }
+                    $stmt->bind_param('issssss', $lid, $cat, $act, $det, $by, $ip, $dt);
+                    @$stmt->execute();
+                }
+                $result['inserted']['system_logs'] = count($data['system_logs']);
+            }
+        }
+
+        // Sms_templates (TemplateID, CompanyID, TemplateName, TemplateText, CreatedAt, UpdatedAt; опционально UserID)
+        if ($opts['sms_templates'] && !empty($data['sms_templates']) && is_array($data['sms_templates'])) {
+            $res = $conn->query("SHOW TABLES LIKE 'sms_templates'");
+            if ($res && $res->num_rows > 0) {
+                $hasUserID = false;
+                $cols = $conn->query("SHOW COLUMNS FROM sms_templates LIKE 'UserID'");
+                if ($cols && $cols->num_rows > 0) $hasUserID = true;
+                foreach ($data['sms_templates'] as $row) {
+                    $tid = intval($row['TemplateID'] ?? 0);
+                    $cid = intval($row['CompanyID'] ?? 0);
+                    $tname = strval($row['TemplateName'] ?? '');
+                    $ttext = strval($row['TemplateText'] ?? '');
+                    $created = strval($row['CreatedAt'] ?? date('Y-m-d H:i:s'));
+                    $updated = strval($row['UpdatedAt'] ?? date('Y-m-d H:i:s'));
+                    if ($tid <= 0 || $cid <= 0 || $tname === '') { $result['skipped'][] = ['sms_templates' => $row]; continue; }
+                    if ($hasUserID) {
+                        $uid = isset($row['UserID']) && $row['UserID'] !== '' && $row['UserID'] !== null ? intval($row['UserID']) : null;
+                        $stmt = $conn->prepare('INSERT INTO sms_templates (TemplateID, CompanyID, UserID, TemplateName, TemplateText, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param('iiissss', $tid, $cid, $uid, $tname, $ttext, $created, $updated);
+                    } else {
+                        $stmt = $conn->prepare('INSERT INTO sms_templates (TemplateID, CompanyID, TemplateName, TemplateText, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param('iissss', $tid, $cid, $tname, $ttext, $created, $updated);
+                    }
+                    @$stmt->execute();
+                }
+                $result['inserted']['sms_templates'] = count($data['sms_templates']);
+            }
+        }
+
+        // Sms_checkbox_templates
+        if ($opts['sms_checkbox_templates'] && !empty($data['sms_checkbox_templates']) && is_array($data['sms_checkbox_templates'])) {
+            $res = $conn->query("SHOW TABLES LIKE 'sms_checkbox_templates'");
+            if ($res && $res->num_rows > 0) {
+                $hasCreatedBy = false;
+                $hasUpdatedBy = false;
+                $cols = $conn->query("SHOW COLUMNS FROM sms_checkbox_templates");
+                if ($cols) {
+                    while ($c = $cols->fetch_assoc()) {
+                        if ($c['Field'] === 'CreatedByUserID') $hasCreatedBy = true;
+                        if ($c['Field'] === 'UpdatedByUserID') $hasUpdatedBy = true;
+                    }
+                }
+                foreach ($data['sms_checkbox_templates'] as $row) {
+                    $id = intval($row['CheckboxTemplateID'] ?? 0);
+                    $cid = intval($row['CompanyID'] ?? 0);
+                    $tname = strval($row['TemplateName'] ?? '');
+                    $tdata = strval($row['TemplateData'] ?? '');
+                    $created = strval($row['CreatedAt'] ?? date('Y-m-d H:i:s'));
+                    $updated = strval($row['UpdatedAt'] ?? date('Y-m-d H:i:s'));
+                    if ($id <= 0 || $cid <= 0 || $tname === '') { $result['skipped'][] = ['sms_checkbox_templates' => $row]; continue; }
+                    if ($hasCreatedBy && $hasUpdatedBy) {
+                        $cby = isset($row['CreatedByUserID']) && $row['CreatedByUserID'] !== '' && $row['CreatedByUserID'] !== null ? intval($row['CreatedByUserID']) : null;
+                        $uby = isset($row['UpdatedByUserID']) && $row['UpdatedByUserID'] !== '' && $row['UpdatedByUserID'] !== null ? intval($row['UpdatedByUserID']) : null;
+                        $stmt = $conn->prepare('INSERT INTO sms_checkbox_templates (CheckboxTemplateID, CompanyID, TemplateName, TemplateData, CreatedByUserID, UpdatedByUserID, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param('iissiiss', $id, $cid, $tname, $tdata, $cby, $uby, $created, $updated);
+                    } else {
+                        $stmt = $conn->prepare('INSERT INTO sms_checkbox_templates (CheckboxTemplateID, CompanyID, TemplateName, TemplateData, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param('iissss', $id, $cid, $tname, $tdata, $created, $updated);
+                    }
+                    @$stmt->execute();
+                }
+                $result['inserted']['sms_checkbox_templates'] = count($data['sms_checkbox_templates']);
+            }
         }
 
         @$conn->query('SET FOREIGN_KEY_CHECKS=1');
@@ -712,8 +1154,8 @@ function syncUsersToRecipients($exclude_username = '') {
             $existing = $check_stmt->get_result()->fetch_assoc();
             $check_stmt->close();
             
-            // Определяем группу на основе роли
-            $group_id = ($user['Role'] === 'admin') ? 4 : 1; // 4 = Руководство, 1 = Сотрудники
+            // Определяем группу на основе роли: admin -> Руководство(4), user/recipient -> Сотрудники(1)
+            $group_id = ($user['Role'] === 'admin') ? 4 : 1;
             
             if (!$existing) {
                 // Добавляем нового получателя
@@ -777,6 +1219,7 @@ function sendUserMessage($data) {
     $recipients = array_filter(array_map('intval', $recipients));
     $message_text = $data['message_text'] ?? '';
     $user = getCurrentUser();
+    $isAdmin = ($user['role'] ?? '') === 'admin';
 
     if (empty($recipients)) {
         return ['success' => false, 'message' => 'Выберите получателей'];
@@ -802,54 +1245,65 @@ function sendUserMessage($data) {
         $sent = 0; $errors = 0;
 
         foreach ($recipients as $recipient_id) {
-            $stmt = $conn->prepare("SELECT PhoneNumber FROM recipients WHERE RecipientID = ?");
-            $stmt->bind_param("i", $recipient_id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $recipient = $result->fetch_assoc();
-            $stmt->close();
-            
-            if (!$recipient || empty($recipient['PhoneNumber'])) {
-                $errors++;
-                continue;
-            }
-            
-            // Добавляем название отправителя в конец сообщения
-            $companyName = getSelectedCompanyName();
-            $messageWithSender = $message_text;
-            if (!empty($companyName)) {
-                $senderSuffix = ' ' . $companyName;
-                // Проверяем, не превышает ли сообщение лимит в 160 символов
-                if (mb_strlen($message_text . $senderSuffix) <= 160) {
-                    $messageWithSender = $message_text . $senderSuffix;
+            // Администратор отправляет только личные сообщения (без SMS)
+            if (!$isAdmin) {
+                $stmt = $conn->prepare("SELECT PhoneNumber FROM recipients WHERE RecipientID = ?");
+                $stmt->bind_param("i", $recipient_id);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $recipient = $result->fetch_assoc();
+                $stmt->close();
+                
+                if (!$recipient || empty($recipient['PhoneNumber'])) {
+                    $errors++;
+                    continue;
                 }
-            }
-            
-            $smsResult = sendSms($recipient['PhoneNumber'], $messageWithSender);
-            $smsStatus = $smsResult['success'] ? 'Доставлено' : ($smsResult['status'] ?? 'Ошибка');
+                
+                $companyName = getSelectedCompanyName();
+                $messageWithSender = $message_text;
+                if (!empty($companyName) && mb_strlen($message_text . ' ' . $companyName) <= 600) {
+                    $messageWithSender = $message_text . ' ' . $companyName;
+                }
+                
+                $smsResult = sendSms($recipient['PhoneNumber'], $messageWithSender);
+                $smsStatus = (string)($smsResult['status'] ?? ($smsResult['success'] ? 'Отправлено' : 'Ошибка'));
 
-            $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, ?, NOW())");
-            $stmt->bind_param("iis", $messageId, $recipient_id, $smsStatus);
-            $stmt->execute();
-            $stmt->close();
+                $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, ?, NOW())");
+                $stmt->bind_param("iis", $messageId, $recipient_id, $smsStatus);
+                $stmt->execute();
+                $stmt->close();
+            }
             
             $stmt = $conn->prepare("INSERT INTO user_messages (SenderID, MessageID, RecipientID) VALUES (?, ?, ?)");
             $stmt->bind_param("iii", $sender_id, $messageId, $recipient_id);
             $ok = $stmt->execute();
             $stmt->close();
 
-            if ($ok && $smsResult['success']) {
-                $sent++;
+            if ($ok) {
+                if ($isAdmin) {
+                    $sent++;
+                } else {
+                    $stmt = $conn->prepare("SELECT 1 FROM messagelogs WHERE MessageID = ? AND RecipientID = ?");
+                    $stmt->bind_param("ii", $messageId, $recipient_id);
+                    $stmt->execute();
+                    $hasLog = $stmt->get_result()->fetch_assoc();
+                    $stmt->close();
+                    if ($hasLog) $sent++;
+                    else $errors++;
+                }
             } else {
                 $errors++;
             }
         }
 
         $conn->commit();
-        $logMessage = 'SMS: ' . $preview . '; получателей: ' . count($recipients) . '; отправлено: ' . $sent . '; ошибки: ' . $errors;
-        logSystemAction('user', 'sms_send', $logMessage);
+        $logAction = $isAdmin ? 'personal_message' : 'sms_send';
+        $logMessage = $isAdmin
+            ? ('Личное сообщение: ' . $preview . '; получателей: ' . count($recipients))
+            : ('SMS: ' . $preview . '; получателей: ' . count($recipients) . '; отправлено: ' . $sent . '; ошибки: ' . $errors);
+        logSystemAction('user', $logAction, $logMessage);
         $conn->close();
-        return ['success' => true, 'message' => "Отправлено: $sent, ошибок: $errors"];
+        return ['success' => true, 'message' => $isAdmin ? "Сообщение отправлено: $sent получателей" : "Отправлено: $sent, ошибок: $errors"];
     } catch (Exception $e) {
         if (isset($conn)) {
             $conn->rollback();
@@ -860,16 +1314,23 @@ function sendUserMessage($data) {
     }
 }
 
-function fetchUserMessages() {
+function fetchUserMessages($dateFilter = 'all') {
     $conn = connectToDatabase();
     $user = getCurrentUser();
-    // Исправляем: getCurrentUser() возвращает 'id', а не 'UserID'
     $current_user_id = intval($user['id'] ?? 0);
     $current_username = $user['username'] ?? '';
-    
-    // Получаем отправленные сообщения (только для текущего пользователя)
+    $dateCondition = '';
+    $paramTypes = 'i';
+    $params = [$current_user_id];
+    if ($dateFilter === 'day') {
+        $dateCondition = ' AND um.SentDate >= DATE_SUB(NOW(), INTERVAL 1 DAY)';
+    } elseif ($dateFilter === 'week') {
+        $dateCondition = ' AND um.SentDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
+    } elseif ($dateFilter === 'month') {
+        $dateCondition = ' AND um.SentDate >= DATE_SUB(NOW(), INTERVAL 30 DAY)';
+    }
     $sent_messages = [];
-    $stmt = $conn->prepare("
+    $sql = "
         SELECT um.UserMessageID, um.SentDate, um.ReadStatus, um.ReadDate,
                m.Text, m.MessageID,
                r.FullName as ContactName, r.PhoneNumber,
@@ -883,21 +1344,18 @@ function fetchUserMessages() {
         LEFT JOIN groups g ON r.GroupID = g.GroupID
         LEFT JOIN users u_sender ON um.SenderID = u_sender.UserID
         LEFT JOIN users u_recipient ON r.FullName = u_recipient.Username
-        WHERE um.SenderID = ?
+        WHERE um.SenderID = ? $dateCondition
         ORDER BY um.SentDate DESC 
-        LIMIT 15
-    ");
+        LIMIT 100
+    ";
+    $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $current_user_id);
     $stmt->execute();
     $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $sent_messages[] = $row;
-    }
+    while ($row = $result->fetch_assoc()) { $sent_messages[] = $row; }
     $stmt->close();
-    
-    // Получаем полученные сообщения (только для текущего пользователя)
     $received_messages = [];
-    $stmt = $conn->prepare("
+    $sql = "
         SELECT um.UserMessageID, um.SentDate, um.ReadStatus, um.ReadDate,
                m.Text, m.MessageID,
                u_sender.Username as ContactName, r.PhoneNumber,
@@ -910,24 +1368,18 @@ function fetchUserMessages() {
         JOIN recipients r ON um.RecipientID = r.RecipientID
         LEFT JOIN groups g ON r.GroupID = g.GroupID
         LEFT JOIN users u_sender ON um.SenderID = u_sender.UserID
-        WHERE r.FullName = ?
+        WHERE r.FullName = ? $dateCondition
         ORDER BY um.SentDate DESC 
-        LIMIT 15
-    ");
+        LIMIT 100
+    ";
+    $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $current_username);
     $stmt->execute();
     $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $received_messages[] = $row;
-    }
+    while ($row = $result->fetch_assoc()) { $received_messages[] = $row; }
     $stmt->close();
-    
     $conn->close();
-    
-    return [
-        'sent' => $sent_messages,
-        'received' => $received_messages
-    ];
+    return ['sent' => $sent_messages, 'received' => $received_messages];
 }
 
 function updateMessageReadStatus($data) {
@@ -989,28 +1441,32 @@ function updateMessageReadStatus($data) {
     }
 }
 
-// Функции для работы с шаблонами SMS
+// Функции для работы с шаблонами SMS (UserID = владелец шаблона, у пользователей видны только свои)
 function ensureSmsTemplatesTable($conn) {
     $conn->query("CREATE TABLE IF NOT EXISTS sms_templates (
         TemplateID INT AUTO_INCREMENT PRIMARY KEY,
         CompanyID INT NOT NULL,
+        UserID INT UNSIGNED NULL,
         TemplateName VARCHAR(255) NOT NULL,
         TemplateText TEXT NOT NULL,
         CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (CompanyID) REFERENCES companies(CompanyID) ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $r = $conn->query("SHOW COLUMNS FROM sms_templates LIKE 'UserID'");
+    if ($r && $r->num_rows == 0) {
+        @$conn->query("ALTER TABLE sms_templates ADD COLUMN UserID INT UNSIGNED NULL AFTER CompanyID");
+    }
 }
 
 function addSmsTemplate($data) {
     try {
-        $companyId = getSelectedCompany();
-        if (!$companyId) {
-            return ['success' => false, 'message' => 'Предприятие не выбрано'];
-        }
-        
         $templateName = trim($data['template_name'] ?? '');
         $templateText = trim($data['template_text'] ?? '');
+        $companyIds = isset($data['company_ids']) ? (is_array($data['company_ids']) ? $data['company_ids'] : []) : [];
+        $companyIds = array_map('intval', $companyIds);
+        $companyIds = array_filter($companyIds, function ($id) { return $id > 0; });
+        $companyIds = array_values(array_unique($companyIds));
         
         if (empty($templateName)) {
             return ['success' => false, 'message' => 'Введите название шаблона'];
@@ -1020,22 +1476,29 @@ function addSmsTemplate($data) {
             return ['success' => false, 'message' => 'Введите текст шаблона'];
         }
         
+        if (empty($companyIds)) {
+            return ['success' => false, 'message' => 'Выберите хотя бы одно предприятие для сохранения шаблона'];
+        }
+        
         $conn = connectToDatabase();
         ensureSmsTemplatesTable($conn);
-        
-        $stmt = $conn->prepare("INSERT INTO sms_templates (CompanyID, TemplateName, TemplateText) VALUES (?, ?, ?)");
-        $stmt->bind_param("iss", $companyId, $templateName, $templateText);
-        
-        if ($stmt->execute()) {
-            logSystemAction('sms_templates', 'add', 'Добавлен шаблон SMS: ' . $templateName);
-            $stmt->close();
-            $conn->close();
-            return ['success' => true, 'message' => 'Шаблон успешно добавлен'];
-        } else {
-            $stmt->close();
-            $conn->close();
-            return ['success' => false, 'message' => 'Ошибка при добавлении шаблона'];
+        $currentUserId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+        $stmt = $conn->prepare("INSERT INTO sms_templates (CompanyID, UserID, TemplateName, TemplateText) VALUES (?, ?, ?, ?)");
+        $added = 0;
+        foreach ($companyIds as $companyId) {
+            $stmt->bind_param("iiss", $companyId, $currentUserId, $templateName, $templateText);
+            if ($stmt->execute()) {
+                $added++;
+            }
         }
+        $stmt->close();
+        $conn->close();
+        
+        if ($added > 0) {
+            logSystemAction('sms_templates', 'add', 'Добавлен шаблон SMS: ' . $templateName . ' на ' . $added . ' предприятий');
+            return ['success' => true, 'message' => 'Шаблон успешно добавлен на ' . $added . ' предприятий'];
+        }
+        return ['success' => false, 'message' => 'Ошибка при добавлении шаблона'];
     } catch (Exception $e) {
         return ['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()];
     }
@@ -1044,14 +1507,14 @@ function addSmsTemplate($data) {
 function updateSmsTemplate($data) {
     try {
         $templateId = intval($data['template_id'] ?? 0);
-        $companyId = getSelectedCompany();
+        $companyId = isset($data['company_id']) ? intval($data['company_id']) : getSelectedCompany();
         
         if ($templateId <= 0) {
             return ['success' => false, 'message' => 'Некорректный ID шаблона'];
         }
         
         if (!$companyId) {
-            return ['success' => false, 'message' => 'Предприятие не выбрано'];
+            return ['success' => false, 'message' => 'Предприятие не указано'];
         }
         
         $templateName = trim($data['template_name'] ?? '');
@@ -1068,7 +1531,6 @@ function updateSmsTemplate($data) {
         $conn = connectToDatabase();
         ensureSmsTemplatesTable($conn);
         
-        // Проверяем, что шаблон принадлежит выбранному предприятию
         $check_stmt = $conn->prepare("SELECT TemplateID FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
         $check_stmt->bind_param("ii", $templateId, $companyId);
         $check_stmt->execute();
@@ -1077,7 +1539,7 @@ function updateSmsTemplate($data) {
         
         if (!$exists) {
             $conn->close();
-            return ['success' => false, 'message' => 'Шаблон не найден или не принадлежит выбранному предприятию'];
+            return ['success' => false, 'message' => 'Шаблон не найден или не принадлежит указанному предприятию'];
         }
         
         $stmt = $conn->prepare("UPDATE sms_templates SET TemplateName = ?, TemplateText = ? WHERE TemplateID = ? AND CompanyID = ?");
@@ -1101,20 +1563,19 @@ function updateSmsTemplate($data) {
 function deleteSmsTemplate($data) {
     try {
         $templateId = intval($data['id'] ?? 0);
-        $companyId = getSelectedCompany();
+        $companyId = isset($data['company_id']) ? intval($data['company_id']) : getSelectedCompany();
         
         if ($templateId <= 0) {
             return ['success' => false, 'message' => 'Некорректный ID шаблона'];
         }
         
         if (!$companyId) {
-            return ['success' => false, 'message' => 'Предприятие не выбрано'];
+            return ['success' => false, 'message' => 'Предприятие не указано'];
         }
         
         $conn = connectToDatabase();
         ensureSmsTemplatesTable($conn);
         
-        // Проверяем, что шаблон принадлежит выбранному предприятию
         $check_stmt = $conn->prepare("SELECT TemplateName FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
         $check_stmt->bind_param("ii", $templateId, $companyId);
         $check_stmt->execute();
@@ -1123,7 +1584,7 @@ function deleteSmsTemplate($data) {
         
         if (!$template) {
             $conn->close();
-            return ['success' => false, 'message' => 'Шаблон не найден или не принадлежит выбранному предприятию'];
+            return ['success' => false, 'message' => 'Шаблон не найден или не принадлежит указанному предприятию'];
         }
         
         $stmt = $conn->prepare("DELETE FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
@@ -1173,9 +1634,35 @@ function fetchSmsTemplates() {
     }
 }
 
-function getSmsTemplateById($id) {
+// Все шаблоны с названием предприятия (для админки)
+function fetchSmsTemplatesAll() {
     try {
-        $companyId = getSelectedCompany();
+        $conn = connectToDatabase();
+        ensureSmsTemplatesTable($conn);
+        
+        $sql = "SELECT t.TemplateID, t.CompanyID, t.TemplateName, t.TemplateText, t.CreatedAt, t.UpdatedAt, t.UserID, c.CompanyName,
+                u.Username AS CreatedByUsername
+                FROM sms_templates t 
+                LEFT JOIN companies c ON t.CompanyID = c.CompanyID
+                LEFT JOIN users u ON t.UserID = u.UserID
+                ORDER BY c.CompanyName, t.TemplateID DESC";
+        $result = $conn->query($sql);
+        $templates = [];
+        while ($row = $result->fetch_assoc()) {
+            $templates[] = $row;
+        }
+        $conn->close();
+        return $templates;
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+function getSmsTemplateById($id, $companyId = null) {
+    try {
+        if (!$companyId) {
+            $companyId = getSelectedCompany();
+        }
         if (!$companyId) {
             return null;
         }
@@ -1183,7 +1670,7 @@ function getSmsTemplateById($id) {
         $conn = connectToDatabase();
         ensureSmsTemplatesTable($conn);
         
-        $stmt = $conn->prepare("SELECT TemplateID, TemplateName, TemplateText, CreatedAt, UpdatedAt FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
+        $stmt = $conn->prepare("SELECT TemplateID, CompanyID, TemplateName, TemplateText, CreatedAt, UpdatedAt FROM sms_templates WHERE TemplateID = ? AND CompanyID = ?");
         $stmt->bind_param("ii", $id, $companyId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -1195,6 +1682,162 @@ function getSmsTemplateById($id) {
         return $template;
     } catch (Exception $e) {
         return null;
+    }
+}
+
+// Чекбокс-шаблоны SMS
+function ensureCheckboxTemplatesTable($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS sms_checkbox_templates (
+        CheckboxTemplateID INT AUTO_INCREMENT PRIMARY KEY,
+        CompanyID INT NOT NULL,
+        TemplateName VARCHAR(255) NOT NULL,
+        TemplateData TEXT NOT NULL,
+        CreatedByUserID INT UNSIGNED NULL,
+        UpdatedByUserID INT UNSIGNED NULL,
+        CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY CompanyID (CompanyID)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Добавить колонки если их нет (миграция)
+    $cols = [];
+    $res = @$conn->query("SHOW COLUMNS FROM sms_checkbox_templates");
+    if ($res) { while ($r = $res->fetch_assoc()) $cols[$r['Field']] = true; }
+    if (!isset($cols['CreatedByUserID'])) @$conn->query("ALTER TABLE sms_checkbox_templates ADD COLUMN CreatedByUserID INT UNSIGNED NULL AFTER TemplateData");
+    if (!isset($cols['UpdatedByUserID'])) @$conn->query("ALTER TABLE sms_checkbox_templates ADD COLUMN UpdatedByUserID INT UNSIGNED NULL AFTER CreatedByUserID");
+}
+
+function fetchCheckboxTemplatesAll($companyFilter = null) {
+    try {
+        $conn = connectToDatabase();
+        ensureCheckboxTemplatesTable($conn);
+        $where = $companyFilter ? " WHERE t.CompanyID = " . intval($companyFilter) : '';
+        $sql = "SELECT t.CheckboxTemplateID, t.CompanyID, t.TemplateName, t.TemplateData, t.CreatedAt, t.UpdatedAt, t.CreatedByUserID, t.UpdatedByUserID,
+                c.CompanyName,
+                u_created.Username AS CreatedByUsername,
+                u_updated.Username AS UpdatedByUsername
+                FROM sms_checkbox_templates t 
+                LEFT JOIN companies c ON t.CompanyID = c.CompanyID
+                LEFT JOIN users u_created ON t.CreatedByUserID = u_created.UserID
+                LEFT JOIN users u_updated ON t.UpdatedByUserID = u_updated.UserID
+                $where
+                ORDER BY c.CompanyName, t.UpdatedAt DESC, t.CheckboxTemplateID DESC";
+        $result = $conn->query($sql);
+        $templates = [];
+        while ($row = $result->fetch_assoc()) {
+            $templates[] = $row;
+        }
+        $conn->close();
+        return $templates;
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+function getCheckboxTemplateById($id, $companyId = null) {
+    try {
+        if (!$companyId) {
+            $companyId = getSelectedCompany();
+        }
+        if (!$companyId || $id <= 0) {
+            return null;
+        }
+        $conn = connectToDatabase();
+        ensureCheckboxTemplatesTable($conn);
+        $stmt = $conn->prepare("SELECT CheckboxTemplateID, CompanyID, TemplateName, TemplateData, CreatedAt, UpdatedAt FROM sms_checkbox_templates WHERE CheckboxTemplateID = ? AND CompanyID = ?");
+        $stmt->bind_param("ii", $id, $companyId);
+        $stmt->execute();
+        $template = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $conn->close();
+        return $template;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+function saveCheckboxTemplate($data) {
+    try {
+        $id = intval($data['checkbox_template_id'] ?? 0);
+        $templateName = trim($data['template_name'] ?? '');
+        $companyIds = isset($data['company_ids']) ? (is_array($data['company_ids']) ? $data['company_ids'] : []) : [];
+        $companyIds = array_values(array_unique(array_filter(array_map('intval', $companyIds), function ($i) { return $i > 0; })));
+        $templateData = $data['template_data'] ?? '';
+
+        if (empty($templateName)) {
+            return ['success' => false, 'message' => 'Введите название чекбокс-шаблона'];
+        }
+        if (empty($templateData)) {
+            return ['success' => false, 'message' => 'Данные шаблона пусты'];
+        }
+        $decoded = json_decode($templateData, true);
+        if (!is_array($decoded) || !isset($decoded['columns']) || !isset($decoded['rows'])) {
+            return ['success' => false, 'message' => 'Некорректная структура данных шаблона'];
+        }
+        if (empty($companyIds)) {
+            return ['success' => false, 'message' => 'Выберите хотя бы одно предприятие'];
+        }
+
+        $conn = connectToDatabase();
+        ensureCheckboxTemplatesTable($conn);
+        $currentUserId = intval(getCurrentUser()['id'] ?? 0);
+
+        if ($id > 0) {
+            $stmt = $conn->prepare("UPDATE sms_checkbox_templates SET TemplateName = ?, TemplateData = ?, CompanyID = ?, UpdatedByUserID = ? WHERE CheckboxTemplateID = ?");
+            $cid = $companyIds[0];
+            $uidVal = $currentUserId > 0 ? $currentUserId : null;
+            $stmt->bind_param("ssiii", $templateName, $templateData, $cid, $uidVal, $id);
+            if ($stmt->execute()) {
+                logSystemAction('checkbox_templates', 'update', 'Обновлен чекбокс-шаблон ID=' . $id . ': ' . $templateName);
+                $stmt->close();
+                $conn->close();
+                return ['success' => true, 'message' => 'Шаблон обновлен'];
+            }
+            $stmt->close();
+        } else {
+            $stmt = $conn->prepare("INSERT INTO sms_checkbox_templates (CompanyID, TemplateName, TemplateData, CreatedByUserID, UpdatedByUserID) VALUES (?, ?, ?, ?, ?)");
+            $added = 0;
+            $uidVal = $currentUserId > 0 ? $currentUserId : null;
+            foreach ($companyIds as $cid) {
+                $stmt->bind_param("issii", $cid, $templateName, $templateData, $uidVal, $uidVal);
+                if ($stmt->execute()) {
+                    $added++;
+                }
+            }
+            $stmt->close();
+            if ($added > 0) {
+                logSystemAction('checkbox_templates', 'add', 'Добавлен чекбокс-шаблон: ' . $templateName . ' на ' . $added . ' предприятий');
+                $conn->close();
+                return ['success' => true, 'message' => 'Шаблон добавлен на ' . $added . ' предприятий'];
+            }
+        }
+        $conn->close();
+        return ['success' => false, 'message' => 'Ошибка сохранения'];
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()];
+    }
+}
+
+function deleteCheckboxTemplate($data) {
+    try {
+        $id = intval($data['id'] ?? 0);
+        $companyId = isset($data['company_id']) ? intval($data['company_id']) : getSelectedCompany();
+        if ($id <= 0 || !$companyId) {
+            return ['success' => false, 'message' => 'Некорректные данные'];
+        }
+        $conn = connectToDatabase();
+        ensureCheckboxTemplatesTable($conn);
+        $stmt = $conn->prepare("DELETE FROM sms_checkbox_templates WHERE CheckboxTemplateID = ? AND CompanyID = ?");
+        $stmt->bind_param("ii", $id, $companyId);
+        $ok = $stmt->execute();
+        $stmt->close();
+        $conn->close();
+        if ($ok) {
+            logSystemAction('checkbox_templates', 'delete', 'Удален чекбокс-шаблон ID=' . $id);
+            return ['success' => true, 'message' => 'Шаблон удален'];
+        }
+        return ['success' => false, 'message' => 'Не удалось удалить'];
+    } catch (Exception $e) {
+        return ['success' => false, 'message' => 'Ошибка: ' . $e->getMessage()];
     }
 }
 ?>
@@ -1434,6 +2077,14 @@ function getSmsTemplateById($id) {
 
         .data-table tr:hover {
             background: #f8f9fa;
+        }
+        .checkbox-template-col-header {
+            white-space: nowrap;
+            min-width: 80px;
+        }
+        .checkbox-template-col-header .editable-cell {
+            display: inline-block;
+            min-width: 40px;
         }
 
         .delete-btn {
@@ -1741,6 +2392,16 @@ function getSmsTemplateById($id) {
             text-align: right;
         }
 
+        /* Модальное окно редактирования пользователя — можно листать при длинной форме */
+        #editUserModal {
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px 0;
+        }
+        #editUserModal .modal-content {
+            margin: 0 auto 20px;
+        }
+
         .btn-secondary {
             background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
             color: white;
@@ -1866,10 +2527,16 @@ function getSmsTemplateById($id) {
                         <i class="fas fa-user-shield"></i> Пользователи
                     </button>
                     <button class="tab" onclick="showTab('user_messages')">
-                        <i class="fas fa-comments"></i> Отправление СМС
+                        <i class="fas fa-comments"></i> Личные сообщения
+                    </button>
+                    <button class="tab" onclick="showTab('sent_received')">
+                        <i class="fas fa-inbox"></i> Личные сообщения
                     </button>
                     <button class="tab" onclick="showTab('sms_templates')">
                         <i class="fas fa-file-alt"></i> Создание шаблона SMS
+                    </button>
+                    <button class="tab" onclick="showTab('companies')">
+                        <i class="fas fa-building"></i> Предприятия
                     </button>
                 </div>
 
@@ -1967,9 +2634,15 @@ function getSmsTemplateById($id) {
                         <label><input type="checkbox" id="impGroups" checked> Группы</label>
                         <label><input type="checkbox" id="impRecipients" checked> Получатели</label>
                         <label><input type="checkbox" id="impMessages" checked> Сообщения</label>
-                        <label><input type="checkbox" id="impLogs" checked> Логи отправок</label>
+                        <label><input type="checkbox" id="impLogs" checked> Логи отправок (messagelogs)</label>
                         <label><input type="checkbox" id="impFeedback" checked> Обратная связь</label>
-                        <label><input type="checkbox" id="impUsers"> Пользователи (небезопасно)</label>
+                        <label><input type="checkbox" id="impCompanies" checked> Предприятия</label>
+                        <label><input type="checkbox" id="impUserCompanies" checked> Привязка пользователей к предприятиям</label>
+                        <label><input type="checkbox" id="impUserMessages" checked> Личные сообщения (user_messages)</label>
+                        <label><input type="checkbox" id="impSystemLogs"> Журнал системы (system_logs)</label>
+                        <label><input type="checkbox" id="impSmsTemplates" checked> Шаблоны SMS</label>
+                        <label><input type="checkbox" id="impSmsCheckboxTemplates" checked> Чек-бокс шаблоны</label>
+                        <label><input type="checkbox" id="impUsers"> Пользователи (осторожно)</label>
                     </div>
                     <div class="form-group">
                         <button class="btn" type="button" onclick="runImport()">
@@ -1986,13 +2659,14 @@ function getSmsTemplateById($id) {
                     <div class="form-group">
                         <input type="text" id="newUsername" placeholder="Имя пользователя">
                     </div>
-                    <div class="form-group">
-                        <input type="text" id="newUserPassword" placeholder="Пароль">
+                    <div class="form-group" id="newUserPasswordGroup">
+                        <input type="text" id="newUserPassword" placeholder="Пароль (не требуется для Получателя)">
                     </div>
                     <div class="form-group">
                         <select id="newUserRole">
                             <option value="user">Пользователь</option>
                             <option value="admin">Администратор</option>
+                            <option value="recipient">Получатель</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -2000,6 +2674,11 @@ function getSmsTemplateById($id) {
                         <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
                             Номер будет автоматически нормализован. Формат: +7XXXXXXXXXX
                         </small>
+                    </div>
+                    <div class="form-group">
+                        <label>Предприятия для пользователя (шапки предприятий):</label>
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px;">Отметьте предприятия, к которым будет привязан пользователь. При входе он сможет выбрать одно из них для рассылки.</p>
+                        <div id="newUserCompaniesCheckboxes"></div>
                     </div>
                     <button class="btn" onclick="addUser()">
                         <i class="fas fa-user-plus"></i> Добавить пользователя
@@ -2013,9 +2692,9 @@ function getSmsTemplateById($id) {
 
                 <!-- Вкладка пользовательских сообщений -->
                 <div class="tab-content" id="user_messagesTab">
-                    <!-- Отправка личного сообщения -->
+                    <!-- Администратор отправляет только личные сообщения (не СМС) -->
                     <div style="margin-bottom: 30px;">
-                        <h3>📱 Отправка личного сообщения</h3>
+                        <h3>📩 Отправка личного сообщения пользователям</h3>
                         <div class="form-group">
                             <label for="adminRecipientSearch">Поиск получателя</label>
                             <input type="search" id="adminRecipientSearch" placeholder="Поиск по ФИО или номеру">
@@ -2028,6 +2707,15 @@ function getSmsTemplateById($id) {
                                     <option value="<?php echo htmlspecialchars($group['GroupName']); ?>">
                                         <?php echo htmlspecialchars($group['GroupName']); ?>
                                     </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="adminFilterCompany">Фильтр по предприятию</label>
+                            <select id="adminFilterCompany">
+                                <option value="">Все предприятия</option>
+                                <?php foreach (getCompanies() as $c): ?>
+                                    <option value="<?php echo (int)$c['CompanyID']; ?>"><?php echo htmlspecialchars($c['CompanyName']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -2054,11 +2742,11 @@ function getSmsTemplateById($id) {
                         </div>
                         <div class="form-group">
                             <label for="userMessageText">Текст сообщения:</label>
-                            <textarea id="userMessageText" placeholder="Введите текст сообщения..." maxlength="160" disabled></textarea>
-                            <div class="char-counter" id="userCharCounter">0/160 символов</div>
+                            <textarea id="userMessageText" placeholder="Введите текст сообщения..." maxlength="600" disabled></textarea>
+                            <div class="char-counter" id="userCharCounter">0/600 символов</div>
                         </div>
                         <button class="btn" onclick="sendUserMessage()">
-                            <i class="fas fa-paper-plane"></i> Отправить СМС
+                            <i class="fas fa-paper-plane"></i> Отправить сообщение
                         </button>
                         <div class="status-message" id="statusMessage"></div>
                     </div>
@@ -2077,6 +2765,11 @@ function getSmsTemplateById($id) {
                         <textarea id="templateText" placeholder="Введите текст шаблона SMS..." rows="6"></textarea>
                         <div class="char-counter" id="templateCharCounter">0 символов</div>
                     </div>
+                    <div class="form-group" id="templateCompaniesBlock">
+                        <label>Добавить шаблон на предприятия:</label>
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px;">Выберите одно или несколько предприятий, на которые будет сохранён шаблон.</p>
+                        <div id="templateCompaniesCheckboxes"></div>
+                    </div>
                     <div style="display: flex; gap: 10px;">
                         <button class="btn" onclick="saveSmsTemplate()" id="saveTemplateBtn">
                             <i class="fas fa-save"></i> Сохранить шаблон
@@ -2091,15 +2784,138 @@ function getSmsTemplateById($id) {
                     <div id="smsTemplatesTable">
                         <div class="loading">Загрузка шаблонов...</div>
                     </div>
+
+                    <hr style="margin: 40px 0 20px; border: none; border-top: 1px solid #ddd;">
+                    <h3>Чек-бокс шаблон СМС</h3>
+                    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Создавайте табличные шаблоны: первый столбец — название (например «Лава»), остальные — заголовки данных (ad, wrt). В строках — подписи и значения. Пользователь выбирает нужные ячейки чекбоксами при рассылке.</p>
+                    <div class="form-group">
+                        <label for="checkboxTemplateName">Название чекбокс-шаблона:</label>
+                        <input type="text" id="checkboxTemplateName" placeholder="Например: Лава">
+                    </div>
+                    <div class="form-group">
+                        <label>Таблица данных (редактируемая):</label>
+                        <div id="checkboxTemplateTableWrap" style="overflow-x: auto; border: 1px solid #ccc; border-radius: 8px;">
+                            <table id="checkboxTemplateTable" class="data-table" style="min-width: 400px;">
+                                <thead>
+                                    <tr>
+                                        <th contenteditable="true" class="editable-cell" data-row="0" data-col="0" placeholder="Название (Лава)">Лава</th>
+                                        <th class="checkbox-template-col-header"><span contenteditable="true" class="editable-cell" data-row="0" data-col="1">ad</span><button type="button" class="btn btn-danger" style="padding: 2px 6px; font-size: 11px; margin-left: 4px;" onclick="removeCheckboxTemplateColumn(1)" title="Удалить столбец">&times;</button></th>
+                                        <th class="checkbox-template-col-header"><span contenteditable="true" class="editable-cell" data-row="0" data-col="2">wrt</span><button type="button" class="btn btn-danger" style="padding: 2px 6px; font-size: 11px; margin-left: 4px;" onclick="removeCheckboxTemplateColumn(2)" title="Удалить столбец">&times;</button></th>
+                                        <th style="width: 40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td contenteditable="true" class="editable-cell" data-row="1" data-col="0">Плановые показатели качества</td>
+                                        <td contenteditable="true" class="editable-cell" data-row="1" data-col="1">37,8</td>
+                                        <td contenteditable="true" class="editable-cell" data-row="1" data-col="2">7,5</td>
+                                        <td><button type="button" class="btn btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="removeCheckboxTemplateRow(this)">&times;</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td contenteditable="true" class="editable-cell" data-row="2" data-col="0">Фактические показатели:</td>
+                                        <td contenteditable="true" class="editable-cell" data-row="2" data-col="1">37,8</td>
+                                        <td contenteditable="true" class="editable-cell" data-row="2" data-col="2">6,6</td>
+                                        <td><button type="button" class="btn btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="removeCheckboxTemplateRow(this)">&times;</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <button type="button" class="btn btn-secondary" onclick="addCheckboxTemplateRow()" style="font-size: 13px;"><i class="fas fa-plus"></i> Добавить строку</button>
+                            <button type="button" class="btn btn-secondary" onclick="addCheckboxTemplateColumn()" style="font-size: 13px; margin-left: 8px;"><i class="fas fa-plus"></i> Добавить столбец</button>
+                            <span style="color: #666; font-size: 12px; margin-left: 8px;">— удалить столбец: кнопка &times; в заголовке</span>
+                        </div>
+                    </div>
+                    <div class="form-group" id="checkboxTemplateCompaniesBlock">
+                        <label>Предприятия:</label>
+                        <div id="checkboxTemplateCompaniesCheckboxes"></div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn" onclick="saveCheckboxTemplate()" id="saveCheckboxTemplateBtn"><i class="fas fa-save"></i> Сохранить чекбокс-шаблон</button>
+                        <button class="btn btn-secondary" onclick="clearCheckboxTemplateForm()" id="clearCheckboxTemplateBtn" style="display: none;"><i class="fas fa-times"></i> Отмена</button>
+                    </div>
+                    <div class="status-message" id="checkboxTemplateStatusMessage"></div>
+                    <h3 style="margin-top: 30px;">Список чекбокс-шаблонов</h3>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="checkboxTemplateCompanyFilter">Фильтр по предприятию:</label>
+                        <select id="checkboxTemplateCompanyFilter" onchange="loadCheckboxTemplates()">
+                            <option value="">Все предприятия</option>
+                        </select>
+                    </div>
+                    <div id="checkboxTemplatesTable"><div class="loading">Загрузка...</div></div>
                 </div>
-            </div>
-            
-            <!-- Правая колонка для отправленных сообщений -->
-            <div class="card" id="sentMessagesSidebar" style="display: none;">
-                <h2><i class="fas fa-paper-plane"></i> Отправленные сообщения</h2>
-                <div id="sentMessagesList" style="max-height: 600px; overflow-y: auto;">
-                    <div class="loading">Загрузка отправленных сообщений...</div>
+
+                <!-- Вкладка предприятий -->
+                <div class="tab-content" id="companiesTab">
+                    <h3>Добавить предприятие</h3>
+                    <p style="color: #666; margin-bottom: 15px;">Создавайте предприятия (шапки), к которым затем можно привязывать пользователей и шаблоны SMS.</p>
+                    <div class="form-group">
+                        <label for="newCompanyName">Название предприятия:</label>
+                        <input type="text" id="newCompanyName" placeholder="Например: ООО Ромашка">
+                    </div>
+                    <button class="btn" onclick="addCompanySubmit()">
+                        <i class="fas fa-plus"></i> Добавить предприятие
+                    </button>
+                    <div class="status-message" id="companyStatusMessage"></div>
+                    <h3 style="margin-top: 30px;">Список предприятий</h3>
+                    <div id="companiesTable">
+                        <div class="loading">Загрузка...</div>
+                    </div>
                 </div>
+
+                <!-- Модальное окно редактирования предприятия -->
+                <div id="editCompanyModal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 450px;">
+                        <div class="modal-header">
+                            <h3>Редактировать предприятие</h3>
+                            <span class="close" onclick="closeEditCompanyModal()">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" id="editCompanyId">
+                            <div class="form-group">
+                                <label for="editCompanyName">Название предприятия:</label>
+                                <input type="text" id="editCompanyName" placeholder="Название">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="closeEditCompanyModal()">Отмена</button>
+                            <button type="button" class="btn" onclick="saveCompanyEdit()">Сохранить</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Вкладка: личные сообщения (отправленные и полученные) -->
+                <div class="tab-content" id="sent_receivedTab">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">Личные сообщения</h3>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button class="btn btn-danger" type="button" onclick="clearPersonalMessagesHistory()"><i class="fas fa-trash"></i> Очистить все</button>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div class="card" style="margin: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                <h2 style="margin: 0;"><i class="fas fa-paper-plane"></i> Отправленные</h2>
+                                <select id="adminMessageFilter" onchange="loadUserMessages()" style="padding: 6px 10px; border-radius: 6px;">
+                                    <option value="all">Все</option>
+                                    <option value="day">24 часа</option>
+                                    <option value="week">7 дней</option>
+                                    <option value="month">30 дней</option>
+                                </select>
+                            </div>
+                            <div id="sentMessagesList" style="max-height: 600px; overflow-y: auto;">
+                                <div class="loading">Загрузка...</div>
+                            </div>
+                        </div>
+                        <div class="card" style="margin: 0;">
+                            <h2><i class="fas fa-inbox"></i> Полученные</h2>
+                            <div id="receivedMessagesList" style="max-height: 600px; overflow-y: auto;">
+                                <div class="loading">Загрузка...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -2159,6 +2975,7 @@ function getSmsTemplateById($id) {
                         <select id="editRole">
                             <option value="user">Пользователь</option>
                             <option value="admin">Администратор</option>
+                            <option value="recipient">Получатель</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -2174,6 +2991,20 @@ function getSmsTemplateById($id) {
                         <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
                             Номер будет автоматически нормализован. Формат: +7XXXXXXXXXX
                         </small>
+                    </div>
+                    <div class="form-group">
+                        <label for="editGroupId">Группа:</label>
+                        <select id="editGroupId">
+                            <option value="">— Без группы —</option>
+                            <?php foreach ($groups as $g): ?>
+                            <option value="<?php echo (int)$g['GroupID']; ?>"><?php echo htmlspecialchars($g['GroupName']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Предприятия для пользователя (шапки предприятий):</label>
+                        <p style="color: #666; font-size: 12px; margin-bottom: 8px;">Отметьте предприятия, к которым привязан пользователь. При входе он сможет выбрать одно для рассылки.</p>
+                        <div id="editUserCompaniesCheckboxes"></div>
                     </div>
                 </form>
             </div>
@@ -2212,6 +3043,8 @@ function getSmsTemplateById($id) {
         let messageHistoryData = [];
         let smsTemplates = [];
         let editingTemplateId = null;
+        let editingTemplateCompanyId = null;
+        let companiesList = [];
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
@@ -2225,19 +3058,6 @@ function getSmsTemplateById($id) {
             loadUserMessages();
             loadSmsTemplates();
             
-            // Проверяем активную вкладку при загрузке и управляем видимостью блока сообщений
-            const activeTab = document.querySelector('.tab.active');
-            if (activeTab && activeTab.getAttribute('onclick') && activeTab.getAttribute('onclick').includes("'user_messages'")) {
-                const sentMessagesSidebar = document.getElementById('sentMessagesSidebar');
-                const mainContent = document.getElementById('mainContentContainer');
-                if (sentMessagesSidebar) {
-                    sentMessagesSidebar.style.display = 'block';
-                }
-                if (mainContent) {
-                    mainContent.style.gridTemplateColumns = '1fr 1fr';
-                }
-            }
-
             // Счетчик символов для пользовательских сообщений
             const userMessageTextEl = document.getElementById('userMessageText');
             if (userMessageTextEl) {
@@ -2245,10 +3065,10 @@ function getSmsTemplateById($id) {
                     const length = this.value.length;
                     const counter = document.getElementById('userCharCounter');
                     if (counter) {
-                        counter.textContent = `${length}/160 символов`;
-                        if (length > 140) {
+                        counter.textContent = `${length}/600 символов`;
+                        if (length > 540) {
                             counter.className = 'char-counter warning';
-                        } else if (length > 160) {
+                        } else if (length > 600) {
                             counter.className = 'char-counter error';
                         } else {
                             counter.className = 'char-counter';
@@ -2539,6 +3359,12 @@ function getSmsTemplateById($id) {
             form.append('import_messages', document.getElementById('impMessages').checked ? '1' : '0');
             form.append('import_logs', document.getElementById('impLogs').checked ? '1' : '0');
             form.append('import_feedback', document.getElementById('impFeedback').checked ? '1' : '0');
+            form.append('import_companies', document.getElementById('impCompanies').checked ? '1' : '0');
+            form.append('import_user_companies', document.getElementById('impUserCompanies').checked ? '1' : '0');
+            form.append('import_user_messages', document.getElementById('impUserMessages').checked ? '1' : '0');
+            form.append('import_system_logs', document.getElementById('impSystemLogs').checked ? '1' : '0');
+            form.append('import_sms_templates', document.getElementById('impSmsTemplates').checked ? '1' : '0');
+            form.append('import_sms_checkbox_templates', document.getElementById('impSmsCheckboxTemplates').checked ? '1' : '0');
             form.append('import_users', document.getElementById('impUsers').checked ? '1' : '0');
 
             const btn = event && event.target ? event.target : null;
@@ -2587,12 +3413,24 @@ function getSmsTemplateById($id) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    users = data.data;
+                    users = data.data || [];
+                    companiesList = data.companies || [];
                     displayUsersTable();
+                    fillNewUserCompaniesCheckboxes();
+                    renderAdminRecipientsList();
                 }
             })
             .catch(error => {
                 console.error('Ошибка загрузки пользователей:', error);
+            });
+        }
+
+        function fillNewUserCompaniesCheckboxes() {
+            const box = document.getElementById('newUserCompaniesCheckboxes');
+            if (!box) return;
+            box.innerHTML = '';
+            (companiesList || []).forEach(c => {
+                box.innerHTML += `<label style="display:block;margin:8px 0;"><input type="checkbox" name="new_user_company_cb" value="${c.CompanyID}"> ${escapeHtml(c.CompanyName)}</label>`;
             });
         }
 
@@ -2625,17 +3463,21 @@ function getSmsTemplateById($id) {
                 return;
             }
 
-            let table = '<table class="data-table"><thead><tr><th>Имя</th><th>Телефон</th><th>Роль</th><th>Статус</th><th>Создан</th><th>Действия</th></tr></thead><tbody>';
+            let table = '<table class="data-table"><thead><tr><th>Имя</th><th>Телефон</th><th>Роль</th><th>Статус</th><th>Создан</th><th>Предприятие</th><th>Группа</th><th>Действия</th></tr></thead><tbody>';
             users.forEach(u => {
                 const phone = u.PhoneNumber || '—';
+                const companyNames = (u.CompanyNames || '').replace(/'/g, "\\'");
+                const groupName = (u.GroupName || '—').replace(/'/g, "\\'");
                 table += `
                     <tr>
-                        <td>${u.Username}</td>
-                        <td>${phone}</td>
-                        <td>${u.Role}</td>
+                        <td>${escapeHtml(u.Username)}</td>
+                        <td>${escapeHtml(phone)}</td>
+                        <td>${u.Role === 'admin' ? 'Администратор' : (u.Role === 'recipient' ? 'Получатель' : 'Пользователь')}</td>
                         <td>${u.Status}</td>
                         <td>${u.CreatedAt || ''}</td>
-                        <td><button class="btn" onclick="editUser(${u.UserID}, '${u.Username}', '${u.Role}', '${u.Status}', '${(u.PhoneNumber || '').replace(/'/g, "\\'")}')" style="padding: 5px 10px; font-size: 12px;">Редактировать</button></td>
+                        <td>${escapeHtml(u.CompanyNames || '—')}</td>
+                        <td>${escapeHtml(u.GroupName || '—')}</td>
+                        <td><button class="btn" onclick="editUser(${u.UserID}, '${(u.Username || '').replace(/'/g, "\\'")}', '${u.Role}', '${u.Status}', '${(u.PhoneNumber || '').replace(/'/g, "\\'")}', ${u.GroupID || 'null'})" style="padding: 5px 10px; font-size: 12px;">Редактировать</button></td>
                     </tr>
                 `;
             });
@@ -2648,9 +3490,15 @@ function getSmsTemplateById($id) {
             const password = document.getElementById('newUserPassword').value.trim();
             const role = document.getElementById('newUserRole').value;
             const phoneNumber = document.getElementById('newUserPhone').value.trim();
+            const companyCheckboxes = document.querySelectorAll('#newUserCompaniesCheckboxes input[name=new_user_company_cb]:checked');
+            const companyIds = Array.from(companyCheckboxes).map(cb => cb.value);
 
-            if (!username || !password) {
-                showStatus('Введите имя пользователя и пароль', 'error');
+            if (!username) {
+                showStatus('Введите имя пользователя', 'error');
+                return;
+            }
+            if (role !== 'recipient' && !password) {
+                showStatus('Для ролей Пользователь и Администратор требуется пароль', 'error');
                 return;
             }
 
@@ -2660,6 +3508,7 @@ function getSmsTemplateById($id) {
             formData.append('password', password);
             formData.append('role', role);
             formData.append('phoneNumber', phoneNumber);
+            companyIds.forEach(cid => formData.append('company_ids[]', cid));
 
             fetch('admin.php', {
                 method: 'POST',
@@ -2682,14 +3531,23 @@ function getSmsTemplateById($id) {
         }
 
         // Функции для редактирования пользователей
-        function editUser(id, username, role, status, phoneNumber = '') {
+        function editUser(id, username, role, status, phoneNumber = '', groupId = null) {
+            const u = users.find(x => x.UserID == id);
+            const companyIds = (u && u.CompanyIDs) ? u.CompanyIDs : [];
             document.getElementById('editUserId').value = id;
             document.getElementById('editUsername').value = username;
             document.getElementById('editRole').value = role;
             document.getElementById('editStatus').value = status;
             document.getElementById('editPhoneNumber').value = phoneNumber || '';
             document.getElementById('editPassword').value = '';
-            
+            const editGroupEl = document.getElementById('editGroupId');
+            if (editGroupEl) editGroupEl.value = (groupId !== null && groupId !== undefined && groupId !== '') ? groupId : '';
+            const box = document.getElementById('editUserCompaniesCheckboxes');
+            box.innerHTML = '';
+            (companiesList || []).forEach(c => {
+                const checked = companyIds.indexOf(Number(c.CompanyID)) !== -1 ? ' checked' : '';
+                box.innerHTML += `<label style="display:block;margin:8px 0;"><input type="checkbox" name="edit_user_company_cb" value="${c.CompanyID}"${checked}> ${escapeHtml(c.CompanyName)}</label>`;
+            });
             document.getElementById('editUserModal').style.display = 'block';
             document.body.style.overflow = 'hidden';
         }
@@ -2706,6 +3564,8 @@ function getSmsTemplateById($id) {
             const role = document.getElementById('editRole').value;
             const status = document.getElementById('editStatus').value;
             const phoneNumber = document.getElementById('editPhoneNumber').value.trim();
+            const companyCheckboxes = document.querySelectorAll('#editUserCompaniesCheckboxes input[name=edit_user_company_cb]:checked');
+            const companyIds = Array.from(companyCheckboxes).map(cb => cb.value);
 
             if (!username) {
                 showStatus('Введите имя пользователя', 'error');
@@ -2720,6 +3580,9 @@ function getSmsTemplateById($id) {
             formData.append('role', role);
             formData.append('status', status);
             formData.append('phoneNumber', phoneNumber);
+            const groupIdEl = document.getElementById('editGroupId');
+            if (groupIdEl && groupIdEl.value) formData.append('group_id', groupIdEl.value);
+            companyIds.forEach(cid => formData.append('company_ids[]', cid));
 
             fetch('admin.php', {
                 method: 'POST',
@@ -2787,12 +3650,14 @@ function getSmsTemplateById($id) {
                 return;
             }
 
-            let table = '<table class="data-table"><thead><tr><th>Текст</th><th>Получатель</th><th>Группа</th><th>Дата</th></tr></thead><tbody>';
+            let table = '<table class="data-table"><thead><tr><th>Текст</th><th>Отправитель</th><th>Получатель</th><th>Группа</th><th>Дата</th></tr></thead><tbody>';
             messages.forEach(item => {
                 const groupName = item.GroupName || '—';
+                const senderName = item.SenderName || '—';
                 table += `
                     <tr>
                         <td>${item.MessageText}</td>
+                        <td>${senderName}</td>
                         <td>${item.RecipientName}</td>
                         <td>${groupName}</td>
                         <td>${item.SentDate}</td>
@@ -2906,33 +3771,16 @@ function getSmsTemplateById($id) {
             // Загружаем данные при переключении на вкладку шаблонов
             if (tabName === 'sms_templates') {
                 loadSmsTemplates();
+                loadCheckboxTemplates();
+            }
+            if (tabName === 'companies') {
+                loadCompanies();
             }
             if (tabName === 'user_messages') {
                 loadUserMessageTemplates();
             }
-            
-            // Управление видимостью блока "Отправленные сообщения"
-            const sentMessagesSidebar = document.getElementById('sentMessagesSidebar');
-            const mainContent = document.getElementById('mainContentContainer');
-            
-            if (tabName === 'user_messages') {
-                // Показываем блок справа
-                if (sentMessagesSidebar) {
-                    sentMessagesSidebar.style.display = 'block';
-                }
-                // Изменяем grid на две колонки
-                if (mainContent) {
-                    mainContent.style.gridTemplateColumns = '1fr 1fr';
-                }
-            } else {
-                // Скрываем блок
-                if (sentMessagesSidebar) {
-                    sentMessagesSidebar.style.display = 'none';
-                }
-                // Возвращаем одну колонку
-                if (mainContent) {
-                    mainContent.style.gridTemplateColumns = '1fr';
-                }
+            if (tabName === 'sent_received') {
+                loadUserMessages();
             }
         }
 
@@ -2946,6 +3794,105 @@ function getSmsTemplateById($id) {
             setTimeout(() => {
                 statusDiv.style.display = 'none';
             }, 5000);
+        }
+
+        // Предприятия
+        function loadCompanies() {
+            const container = document.getElementById('companiesTable');
+            if (!container) return;
+            container.innerHTML = '<div class="loading">Загрузка...</div>';
+            fetch('admin.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=get_companies'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    renderCompaniesTable(data.data || []);
+                } else {
+                    container.innerHTML = '<p class="status-message status-error">Ошибка загрузки</p>';
+                }
+            })
+            .catch(() => {
+                container.innerHTML = '<p class="status-message status-error">Ошибка загрузки</p>';
+            });
+        }
+
+        let companiesData = [];
+        function renderCompaniesTable(companies) {
+            companiesData = companies || [];
+            const container = document.getElementById('companiesTable');
+            if (!container) return;
+            if (!companies.length) {
+                container.innerHTML = '<p style="color:#666">Нет предприятий. Добавьте первое.</p>';
+                return;
+            }
+            let table = '<table class="data-table"><thead><tr><th>ID</th><th>Название</th><th>Действия</th></tr></thead><tbody>';
+            companies.forEach(c => {
+                table += `<tr><td>${c.CompanyID}</td><td>${escapeHtml(c.CompanyName)}</td><td><button type="button" class="btn btn-secondary" style="padding:5px 10px; font-size:12px;" onclick="openEditCompanyModal(${c.CompanyID})">Редактировать</button></td></tr>`;
+            });
+            table += '</tbody></table>';
+            container.innerHTML = table;
+        }
+
+        function openEditCompanyModal(id) {
+            const c = companiesData.find(x => x.CompanyID == id);
+            document.getElementById('editCompanyId').value = id;
+            document.getElementById('editCompanyName').value = c ? (c.CompanyName || '') : '';
+            document.getElementById('editCompanyModal').style.display = 'block';
+        }
+
+        function closeEditCompanyModal() {
+            document.getElementById('editCompanyModal').style.display = 'none';
+        }
+
+        function saveCompanyEdit() {
+            const id = document.getElementById('editCompanyId').value;
+            const name = document.getElementById('editCompanyName').value.trim();
+            if (!name) { showCompanyStatus('Введите название', 'error'); return; }
+            const fd = new FormData();
+            fd.append('action', 'update_company');
+            fd.append('company_id', id);
+            fd.append('company_name', name);
+            fetch('admin.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                showCompanyStatus(data.message, data.success ? 'success' : 'error');
+                if (data.success) { closeEditCompanyModal(); loadCompanies(); if (companiesList) loadUsers(); }
+            })
+            .catch(() => showCompanyStatus('Ошибка сети', 'error'));
+        }
+
+        function addCompanySubmit() {
+            const name = (document.getElementById('newCompanyName') && document.getElementById('newCompanyName').value) ? document.getElementById('newCompanyName').value.trim() : '';
+            if (!name) {
+                showCompanyStatus('Введите название предприятия', 'error');
+                return;
+            }
+            const fd = new FormData();
+            fd.append('action', 'add_company');
+            fd.append('company_name', name);
+            fetch('admin.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                showCompanyStatus(data.message, data.success ? 'success' : 'error');
+                if (data.success) {
+                    document.getElementById('newCompanyName').value = '';
+                    loadCompanies();
+                    if (companiesList) loadUsers();
+                }
+            })
+            .catch(() => showCompanyStatus('Ошибка сети', 'error'));
+        }
+
+        function showCompanyStatus(msg, type) {
+            const el = document.getElementById('companyStatusMessage');
+            if (!el) return;
+            el.textContent = msg;
+            el.className = 'status-message status-' + (type || 'success');
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
         }
 
 
@@ -3139,10 +4086,12 @@ function getSmsTemplateById($id) {
         }
 
         function loadUserMessages() {
+            const filterEl = document.getElementById('adminMessageFilter');
+            const filterVal = filterEl ? filterEl.value : 'all';
             fetch('admin.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=get_user_messages'
+                body: 'action=get_user_messages&filter=' + encodeURIComponent(filterVal)
             })
             .then(response => response.json())
             .then(data => {
@@ -3173,6 +4122,7 @@ function getSmsTemplateById($id) {
 
             const searchVal = (document.getElementById('adminRecipientSearch').value || '').toLowerCase().trim();
             const groupVal = (document.getElementById('adminFilterGroup').value || '').toLowerCase().trim();
+            const companyVal = (document.getElementById('adminFilterCompany') && document.getElementById('adminFilterCompany').value) ? document.getElementById('adminFilterCompany').value : '';
 
             const filtered = recipients.filter(r => {
                 const name = (r.FullName || '').toLowerCase();
@@ -3180,7 +4130,13 @@ function getSmsTemplateById($id) {
                 const group = (r.GroupName || '').toLowerCase();
                 const matchText = !searchVal || name.includes(searchVal) || phone.includes(searchVal);
                 const matchGroup = !groupVal || group === groupVal;
-                return matchText && matchGroup;
+                let matchCompany = true;
+                if (companyVal) {
+                    const u = (users || []).find(u => String(u.Username || '') === String(r.FullName || ''));
+                    const ids = (u && u.CompanyIDs) ? (Array.isArray(u.CompanyIDs) ? u.CompanyIDs : []) : [];
+                    matchCompany = ids.indexOf(Number(companyVal)) !== -1;
+                }
+                return matchText && matchGroup && matchCompany;
             });
 
             if (filtered.length === 0) {
@@ -3189,16 +4145,23 @@ function getSmsTemplateById($id) {
                 return;
             }
 
-            list.innerHTML = filtered.map(r => `
+            list.innerHTML = filtered.map(r => {
+                const u = (users || []).find(u => String(u.Username || '') === String(r.FullName || ''));
+                const companyNames = (u && u.CompanyNames) ? escapeHtml(u.CompanyNames) : '';
+                return `
                 <label class="recipient-card">
                     <input type="checkbox" value="${r.RecipientID}">
                     <div class="recipient-meta">
-                        <div class="recipient-name">${r.FullName || ''}</div>
-                        <div class="recipient-phone">${r.PhoneNumber || ''}</div>
+                        <div class="recipient-name">${escapeHtml(r.FullName || '')}</div>
+                        <div class="recipient-phone">${escapeHtml(r.PhoneNumber || '')}</div>
                     </div>
-                    ${r.GroupName ? `<span class="badge badge-muted">${r.GroupName}</span>` : ''}
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+                        ${r.GroupName ? `<span class="badge badge-muted">${escapeHtml(r.GroupName)}</span>` : ''}
+                        ${companyNames ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;">${companyNames}</span>` : ''}
+                    </div>
                 </label>
-            `).join('');
+            `;
+            }).join('');
             adminUpdateSelectedCount();
         }
 
@@ -3227,6 +4190,7 @@ function getSmsTemplateById($id) {
 
         document.getElementById('adminRecipientSearch')?.addEventListener('input', renderAdminRecipientsList);
         document.getElementById('adminFilterGroup')?.addEventListener('change', renderAdminRecipientsList);
+        document.getElementById('adminFilterCompany')?.addEventListener('change', renderAdminRecipientsList);
         document.getElementById('adminSelectAllBtn')?.addEventListener('click', adminSelectAllVisible);
         document.getElementById('adminClearSelectionBtn')?.addEventListener('click', adminClearSelection);
         document.getElementById('adminRecipientsList')?.addEventListener('change', adminUpdateSelectedCount);
@@ -3236,14 +4200,18 @@ function getSmsTemplateById($id) {
         function displayUserMessages(data) {
     // Отображение отправленных сообщений
     const sentContainer = document.getElementById('sentMessagesList');
-    if (data.sent && data.sent.length > 0) {
-        sentContainer.innerHTML = data.sent.map(msg => `
-            <div class="message-item sent-message" onclick="openMessageModal(${JSON.stringify(msg).replace(/"/g, '&quot;')})">
-                <div class="message-header">
-                    <div class="message-text">
+    if (sentContainer) {
+        if (data.sent && data.sent.length > 0) {
+            sentContainer.innerHTML = data.sent.map(msg => {
+                const dataAttr = escapeHtml(JSON.stringify(msg)).replace(/'/g, '&#39;');
+                return `
+            <div class="message-item sent-message" data-msg='${dataAttr}' onclick="openMessageModal(JSON.parse(this.getAttribute('data-msg')))">
+                <div class="message-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <div class="message-text" style="flex:1;">
                         <div class="message-type-badge">📤 Отправлено</div>
-                        ${msg.Text}
+                        ${escapeHtml(msg.Text || '')}
                     </div>
+                    <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:12px;flex-shrink:0;" onclick="event.stopPropagation();deleteUserMessageById(${msg.UserMessageID})" title="Удалить">🗑 Удалить</button>
                 </div>
                 <div class="message-details">
                     <div class="detail-row">
@@ -3252,15 +4220,51 @@ function getSmsTemplateById($id) {
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">👤 Получатель:</span>
-                        <span class="detail-value">${msg.ContactName} 
-                            ${msg.GroupName ? `<span class="group-badge">${msg.GroupName}</span>` : ''}
+                        <span class="detail-value">${escapeHtml(msg.ContactName || '')} 
+                            ${msg.GroupName ? `<span class="group-badge">${escapeHtml(msg.GroupName)}</span>` : ''}
                         </span>
                     </div>
                 </div>
             </div>
-        `).join('');
-    } else {
-        sentContainer.innerHTML = '<p style="text-align: center; color: #666;">Нет отправленных сообщений</p>';
+        `;
+            }).join('');
+        } else {
+            sentContainer.innerHTML = '<p style="text-align: center; color: #666;">Нет отправленных сообщений</p>';
+        }
+    }
+    // Отображение полученных сообщений
+    const receivedContainer = document.getElementById('receivedMessagesList');
+    if (receivedContainer) {
+        if (data.received && data.received.length > 0) {
+            receivedContainer.innerHTML = data.received.map(msg => {
+                const dataAttr = escapeHtml(JSON.stringify(msg)).replace(/'/g, '&#39;');
+                return `
+            <div class="message-item received-message" data-msg='${dataAttr}' onclick="openMessageModal(JSON.parse(this.getAttribute('data-msg')))">
+                <div class="message-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <div class="message-text" style="flex:1;">
+                        <div class="message-type-badge">📥 Получено</div>
+                        ${escapeHtml(msg.Text || '')}
+                    </div>
+                    <button type="button" class="btn btn-danger" style="padding:4px 8px;font-size:12px;flex-shrink:0;" onclick="event.stopPropagation();deleteUserMessageById(${msg.UserMessageID})" title="Удалить">🗑 Удалить</button>
+                </div>
+                <div class="message-details">
+                    <div class="detail-row">
+                        <span class="detail-label">📅 Дата:</span>
+                        <span class="detail-value">${new Date(msg.SentDate).toLocaleString('ru-RU')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">👤 Отправитель:</span>
+                        <span class="detail-value">${escapeHtml(msg.SenderName || msg.ContactName || '')} 
+                            ${msg.GroupName ? `<span class="group-badge">${escapeHtml(msg.GroupName)}</span>` : ''}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+            }).join('');
+        } else {
+            receivedContainer.innerHTML = '<p style="text-align: center; color: #666;">Нет полученных сообщений</p>';
+        }
     }
 }
 
@@ -3287,28 +4291,6 @@ function getSmsTemplateById($id) {
             });
         }
 
-        function updateReadStatus(userMessageId, newStatus) {
-            const formData = new FormData();
-            formData.append('action', 'update_read_status');
-            formData.append('user_message_id', userMessageId);
-            formData.append('read_status', newStatus);
-
-            fetch('admin.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                showStatus(data.message, data.success ? 'success' : 'error');
-                if (data.success) {
-                    loadUserMessages();
-                }
-            })
-            .catch(error => {
-                showStatus('Ошибка обновления статуса: ' + error.message, 'error');
-            });
-        }
-
         function openMessageModal(messageData) {
             const modal = document.getElementById('messageModal');
             
@@ -3327,37 +4309,9 @@ function getSmsTemplateById($id) {
             document.getElementById('modalContact').textContent = contactName;
             document.getElementById('modalPhone').textContent = messageData.PhoneNumber || '—';
             
-            // Автоматически отмечаем полученное сообщение как прочитанное при открытии
-            if (messageData.MessageType === 'received' && messageData.ReadStatus === 'unread') {
-                markAsRead(messageData.UserMessageID);
-            }
-            
             // Показываем модальное окно
             modal.style.display = 'block';
             document.body.style.overflow = 'hidden';
-        }
-
-        // Функция для автоматической отметки сообщения как прочитанного
-        function markAsRead(userMessageId) {
-            const formData = new FormData();
-            formData.append('action', 'update_read_status');
-            formData.append('user_message_id', userMessageId);
-            formData.append('read_status', 'read');
-
-            fetch('admin.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Обновляем страницу для отображения изменений
-                setTimeout(() => {
-                    loadUserMessages();
-                }, 1000);
-            })
-            .catch(error => {
-                console.error('Ошибка при отметке сообщения как прочитанного:', error);
-            });
         }
 
         // Универсальный фильтр по временным диапазонам
@@ -3397,9 +4351,9 @@ function getSmsTemplateById($id) {
             .catch(err => showStatus('Ошибка очистки журнала: ' + (err.message || err), 'error'));
         }
 
-        // Очистка истории сообщений
+        // Очистка истории сообщений (и личных сообщений — одна общая очистка)
         function clearMessageHistory() {
-            if (!confirm('Очистить историю сообщений?')) return;
+            if (!confirm('Очистить историю сообщений и все личные сообщения? Это действие нельзя отменить.')) return;
             fetch('admin.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -3412,9 +4366,43 @@ function getSmsTemplateById($id) {
                     messageHistoryData = [];
                     displayMessagesTable();
                     loadStatistics();
+                    loadUserMessages();
                 }
             })
             .catch(err => showStatus('Ошибка очистки истории: ' + (err.message || err), 'error'));
+        }
+
+        // Очистка личных сообщений только для текущего пользователя
+        function clearPersonalMessagesHistory() {
+            if (!confirm('Очистить личные сообщения только для текущего пользователя?')) return;
+            fetch('admin.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=clear_personal_messages'
+            })
+            .then(r => r.json())
+            .then(data => {
+                showStatus(data.message || 'Личные сообщения очищены', data.success ? 'success' : 'error');
+                if (data.success) {
+                    loadUserMessages();
+                }
+            })
+            .catch(err => showStatus('Ошибка очистки личных сообщений: ' + (err.message || err), 'error'));
+        }
+
+        // Удаление одного личного сообщения
+        function deleteUserMessageById(userMessageId) {
+            if (!confirm('Удалить это сообщение?')) return;
+            const formData = new FormData();
+            formData.append('action', 'delete_user_message');
+            formData.append('user_message_id', userMessageId);
+            fetch('admin.php', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    showStatus(data.message, data.success ? 'success' : 'error');
+                    if (data.success) loadUserMessages();
+                })
+                .catch(err => showStatus('Ошибка удаления: ' + (err.message || err), 'error'));
         }
 
         function closeModal() {
@@ -3434,11 +4422,24 @@ function getSmsTemplateById($id) {
             .then(data => {
                 if (data.success) {
                     smsTemplates = data.data || [];
+                    if (data.companies && data.companies.length) {
+                        companiesList = data.companies;
+                    }
+                    fillTemplateCompaniesCheckboxes();
                     displaySmsTemplatesTable();
                 }
             })
             .catch(error => {
                 console.error('Ошибка загрузки шаблонов:', error);
+            });
+        }
+
+        function fillTemplateCompaniesCheckboxes() {
+            const box = document.getElementById('templateCompaniesCheckboxes');
+            if (!box) return;
+            box.innerHTML = '';
+            (companiesList || []).forEach(c => {
+                box.innerHTML += `<label style="display:block;margin:8px 0;"><input type="checkbox" name="template_company_cb" value="${c.CompanyID}"> ${escapeHtml(c.CompanyName)}</label>`;
             });
         }
 
@@ -3453,26 +4454,31 @@ function getSmsTemplateById($id) {
                 return;
             }
             
-            let table = '<table class="data-table"><thead><tr><th>Название</th><th>Текст</th><th>Создан</th><th>Обновлен</th><th>Действия</th></tr></thead><tbody>';
+            let table = '<table class="data-table"><thead><tr><th>Предприятие</th><th>Название</th><th>Текст</th><th>Создан</th><th>Обновлен</th><th>Создал/Обновил</th><th>Действия</th></tr></thead><tbody>';
             
             smsTemplates.forEach(template => {
-                const textPreview = template.TemplateText.length > 50 ? 
+                const textPreview = (template.TemplateText || '').length > 50 ? 
                     template.TemplateText.substring(0, 50) + '...' : 
-                    template.TemplateText;
+                    (template.TemplateText || '');
                 const createdAt = template.CreatedAt ? new Date(template.CreatedAt).toLocaleString('ru-RU') : '—';
                 const updatedAt = template.UpdatedAt ? new Date(template.UpdatedAt).toLocaleString('ru-RU') : '—';
+                const creator = template.CreatedByUsername || '—';
+                const companyName = escapeHtml(template.CompanyName || '—');
+                const companyId = template.CompanyID || '';
                 
                 table += `
                     <tr>
+                        <td>${companyName}</td>
                         <td><strong>${escapeHtml(template.TemplateName)}</strong></td>
                         <td>${escapeHtml(textPreview)}</td>
                         <td>${createdAt}</td>
                         <td>${updatedAt}</td>
+                        <td>${escapeHtml(creator)}</td>
                         <td>
-                            <button class="btn" onclick="editSmsTemplate(${template.TemplateID})" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">
+                            <button class="btn" onclick="editSmsTemplate(${template.TemplateID}, ${companyId})" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">
                                 <i class="fas fa-edit"></i> Редактировать
                             </button>
-                            <button class="btn btn-danger" onclick="deleteSmsTemplate(${template.TemplateID})" style="padding: 5px 10px; font-size: 12px;">
+                            <button class="btn btn-danger" onclick="deleteSmsTemplate(${template.TemplateID}, ${companyId})" style="padding: 5px 10px; font-size: 12px;">
                                 <i class="fas fa-trash"></i> Удалить
                             </button>
                         </td>
@@ -3502,6 +4508,15 @@ function getSmsTemplateById($id) {
             formData.append('action', editingTemplateId ? 'update_sms_template' : 'add_sms_template');
             if (editingTemplateId) {
                 formData.append('template_id', editingTemplateId);
+                formData.append('company_id', editingTemplateCompanyId || '');
+            } else {
+                const companyCheckboxes = document.querySelectorAll('#templateCompaniesCheckboxes input[name=template_company_cb]:checked');
+                const companyIds = Array.from(companyCheckboxes).map(cb => cb.value);
+                if (!companyIds.length) {
+                    showTemplateStatus('Выберите хотя бы одно предприятие для сохранения шаблона', 'error');
+                    return;
+                }
+                companyIds.forEach(cid => formData.append('company_ids[]', cid));
             }
             formData.append('template_name', templateName);
             formData.append('template_text', templateText);
@@ -3523,11 +4538,12 @@ function getSmsTemplateById($id) {
             });
         }
 
-        function editSmsTemplate(id) {
+        function editSmsTemplate(id, companyId) {
+            const body = 'action=get_sms_template&id=' + id + (companyId ? '&company_id=' + companyId : '');
             fetch('admin.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=get_sms_template&id=' + id
+                body: body
             })
             .then(response => response.json())
             .then(data => {
@@ -3536,12 +4552,10 @@ function getSmsTemplateById($id) {
                     document.getElementById('templateName').value = template.TemplateName;
                     document.getElementById('templateText').value = template.TemplateText;
                     editingTemplateId = template.TemplateID;
-                    
-                    // Обновляем кнопки
+                    editingTemplateCompanyId = template.CompanyID || companyId;
+                    document.getElementById('templateCompaniesBlock').style.display = 'none';
                     document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-save"></i> Обновить шаблон';
                     document.getElementById('clearTemplateBtn').style.display = 'inline-block';
-                    
-                    // Прокручиваем к форме
                     document.getElementById('templateName').scrollIntoView({ behavior: 'smooth', block: 'start' });
                 } else {
                     showTemplateStatus('Шаблон не найден', 'error');
@@ -3552,8 +4566,8 @@ function getSmsTemplateById($id) {
             });
         }
 
-        function deleteSmsTemplate(id) {
-            const template = smsTemplates.find(t => t.TemplateID === id);
+        function deleteSmsTemplate(id, companyId) {
+            const template = smsTemplates.find(t => t.TemplateID === id && (t.CompanyID == companyId || !companyId));
             const templateName = template ? template.TemplateName : 'шаблон';
             
             if (!confirm(`Вы уверены, что хотите удалить шаблон "${templateName}"?`)) {
@@ -3563,6 +4577,7 @@ function getSmsTemplateById($id) {
             const formData = new FormData();
             formData.append('action', 'delete_sms_template');
             formData.append('id', id);
+            if (companyId) formData.append('company_id', companyId);
             
             fetch('admin.php', {
                 method: 'POST',
@@ -3584,9 +4599,11 @@ function getSmsTemplateById($id) {
             document.getElementById('templateName').value = '';
             document.getElementById('templateText').value = '';
             editingTemplateId = null;
+            editingTemplateCompanyId = null;
             document.getElementById('saveTemplateBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить шаблон';
             document.getElementById('clearTemplateBtn').style.display = 'none';
             document.getElementById('templateCharCounter').textContent = '0 символов';
+            document.getElementById('templateCompaniesBlock').style.display = 'block';
         }
 
         function showTemplateStatus(message, type) {
@@ -3598,6 +4615,381 @@ function getSmsTemplateById($id) {
             setTimeout(() => {
                 statusDiv.style.display = 'none';
             }, 5000);
+        }
+
+        // Чекбокс-шаблоны
+        let checkboxTemplates = [];
+        let editingCheckboxTemplateId = null;
+        let editingCheckboxTemplateCompanyId = null;
+
+        function loadCheckboxTemplates() {
+            const companyFilter = document.getElementById('checkboxTemplateCompanyFilter')?.value || '';
+            const body = 'action=get_checkbox_templates' + (companyFilter ? '&company_filter=' + encodeURIComponent(companyFilter) : '');
+            fetch('admin.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: body
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    checkboxTemplates = data.data || [];
+                    if (data.companies && data.companies.length) {
+                        companiesList = data.companies;
+                        const filterEl = document.getElementById('checkboxTemplateCompanyFilter');
+                        if (filterEl && filterEl.options.length <= 1) {
+                            filterEl.innerHTML = '<option value="">Все предприятия</option>' + data.companies.map(c => `<option value="${c.CompanyID}">${escapeHtml(c.CompanyName)}</option>`).join('');
+                        }
+                    }
+                    fillCheckboxTemplateCompaniesCheckboxes();
+                    displayCheckboxTemplatesTable();
+                }
+            })
+            .catch(err => console.error('Ошибка загрузки чекбокс-шаблонов:', err));
+        }
+
+        function fillCheckboxTemplateCompaniesCheckboxes() {
+            const box = document.getElementById('checkboxTemplateCompaniesCheckboxes');
+            if (!box) return;
+            const list = companiesList || [];
+            box.innerHTML = list.map(c => `<label style="display:block;margin:8px 0;"><input type="checkbox" name="checkbox_template_company_cb" value="${c.CompanyID}"> ${escapeHtml(c.CompanyName)}</label>`).join('');
+        }
+
+        function buildCheckboxTemplateDataFromTable() {
+            const table = document.getElementById('checkboxTemplateTable');
+            if (!table) return null;
+            const thead = table.querySelector('thead tr');
+            const tbody = table.querySelector('tbody');
+            if (!thead || !tbody) return null;
+            const headerCells = Array.from(thead.querySelectorAll('th')).slice(0, -1);
+            const columns = headerCells.map(th => {
+                const ed = th.querySelector('.editable-cell');
+                return ((ed || th).textContent || '').trim();
+            }).filter(Boolean);
+            if (columns.length < 2) return null;
+            const rows = [];
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const cells = tr.querySelectorAll('td');
+                const label = (cells[0]?.textContent || '').trim();
+                const values = [];
+                for (let i = 1; i < columns.length; i++) {
+                    values.push((cells[i]?.textContent || '').trim());
+                }
+                if (label || values.some(v => v)) rows.push({ label, values });
+            });
+            return { columns, rows };
+        }
+
+        function createCheckboxTemplateHeaderTh(col, colIdx, totalCols) {
+            const th = document.createElement('th');
+            th.className = colIdx >= 1 ? 'checkbox-template-col-header' : '';
+            if (colIdx === 0) {
+                th.contentEditable = 'true';
+                th.className = 'editable-cell';
+                th.dataset.row = '0';
+                th.dataset.col = '0';
+                th.textContent = col;
+            } else {
+                const span = document.createElement('span');
+                span.contentEditable = 'true';
+                span.className = 'editable-cell';
+                span.dataset.row = '0';
+                span.dataset.col = String(colIdx);
+                span.textContent = col;
+                th.appendChild(span);
+                if (totalCols > 2) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn btn-danger';
+                    btn.style.cssText = 'padding: 2px 6px; font-size: 11px; margin-left: 4px;';
+                    btn.title = 'Удалить столбец';
+                    btn.textContent = '×';
+                    btn.onclick = function() {
+                        const theadRow = document.querySelector('#checkboxTemplateTable thead tr');
+                        const idx = Array.from(theadRow.querySelectorAll('th')).indexOf(th);
+                        removeCheckboxTemplateColumn(idx);
+                    };
+                    th.appendChild(btn);
+                }
+            }
+            return th;
+        }
+
+        function populateCheckboxTemplateTable(data) {
+            const table = document.getElementById('checkboxTemplateTable');
+            if (!table || !data || !data.columns || !data.rows) return;
+            const thead = table.querySelector('thead tr');
+            const tbody = table.querySelector('tbody');
+            thead.innerHTML = '';
+            data.columns.forEach((col, i) => {
+                thead.appendChild(createCheckboxTemplateHeaderTh(col, i, data.columns.length));
+            });
+            const delTh = document.createElement('th');
+            delTh.style.width = '40px';
+            thead.appendChild(delTh);
+            tbody.innerHTML = '';
+            data.rows.forEach((row, ri) => {
+                const tr = document.createElement('tr');
+                const labelTd = document.createElement('td');
+                labelTd.contentEditable = 'true';
+                labelTd.className = 'editable-cell';
+                labelTd.dataset.row = String(ri + 1);
+                labelTd.dataset.col = '0';
+                labelTd.textContent = row.label || '';
+                tr.appendChild(labelTd);
+                (row.values || []).forEach((val, vi) => {
+                    const td = document.createElement('td');
+                    td.contentEditable = 'true';
+                    td.className = 'editable-cell';
+                    td.dataset.row = String(ri + 1);
+                    td.dataset.col = String(vi + 1);
+                    td.textContent = val;
+                    tr.appendChild(td);
+                });
+                while (tr.children.length < data.columns.length) {
+                    const empty = document.createElement('td');
+                    empty.contentEditable = 'true';
+                    empty.className = 'editable-cell';
+                    tr.appendChild(empty);
+                }
+                const delTd = document.createElement('td');
+                delTd.innerHTML = '<button type="button" class="btn btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="removeCheckboxTemplateRow(this)">&times;</button>';
+                tr.appendChild(delTd);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function addCheckboxTemplateRow() {
+            const table = document.getElementById('checkboxTemplateTable');
+            const tbody = table?.querySelector('tbody');
+            if (!tbody) return;
+            const headerCells = table.querySelector('thead tr').querySelectorAll('th');
+            const colCount = Math.max(1, headerCells.length - 1);
+            const tr = document.createElement('tr');
+            for (let i = 0; i < colCount; i++) {
+                const td = document.createElement('td');
+                td.contentEditable = 'true';
+                td.className = 'editable-cell';
+                td.dataset.row = String(tbody.children.length + 1);
+                td.dataset.col = String(i);
+                tr.appendChild(td);
+            }
+            const delTd = document.createElement('td');
+            delTd.innerHTML = '<button type="button" class="btn btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="removeCheckboxTemplateRow(this)">&times;</button>';
+            tr.appendChild(delTd);
+            tbody.appendChild(tr);
+        }
+
+        function addCheckboxTemplateColumn() {
+            const table = document.getElementById('checkboxTemplateTable');
+            if (!table) return;
+            const theadRow = table.querySelector('thead tr');
+            const tbody = table.querySelector('tbody');
+            const newColIdx = theadRow.querySelectorAll('th').length - 1;
+            const th = createCheckboxTemplateHeaderTh('', newColIdx, newColIdx + 1);
+            if (newColIdx >= 1) {
+                const span = th.querySelector('.editable-cell');
+                if (span) span.placeholder = 'Название столбца';
+            }
+            theadRow.insertBefore(th, theadRow.lastElementChild);
+            tbody.querySelectorAll('tr').forEach((tr, ri) => {
+                const td = document.createElement('td');
+                td.contentEditable = 'true';
+                td.className = 'editable-cell';
+                td.dataset.row = String(ri + 1);
+                td.dataset.col = String(newColIdx);
+                tr.insertBefore(td, tr.lastElementChild);
+            });
+            updateCheckboxTemplateColumnRemoveButtons();
+        }
+
+        function removeCheckboxTemplateColumn(colIdx) {
+            const table = document.getElementById('checkboxTemplateTable');
+            if (!table) return;
+            const theadRow = table.querySelector('thead tr');
+            const tbody = table.querySelector('tbody');
+            const headers = Array.from(theadRow.querySelectorAll('th'));
+            if (colIdx <= 0 || colIdx >= headers.length - 1) return;
+            const contentColCount = headers.length - 1;
+            if (contentColCount <= 2) return;
+            headers[colIdx].remove();
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const cells = tr.querySelectorAll('td');
+                if (cells[colIdx]) cells[colIdx].remove();
+            });
+            updateCheckboxTemplateColumnRemoveButtons();
+        }
+
+        function updateCheckboxTemplateColumnRemoveButtons() {
+            const theadRow = document.querySelector('#checkboxTemplateTable thead tr');
+            if (!theadRow) return;
+            const headers = Array.from(theadRow.querySelectorAll('th'));
+            const contentColCount = headers.length - 1;
+            headers.forEach((th, i) => {
+                if (i <= 0 || i >= headers.length - 1) return;
+                const existingBtn = th.querySelector('button[title="Удалить столбец"]');
+                if (contentColCount <= 2 && existingBtn) existingBtn.remove();
+                else if (contentColCount > 2 && !existingBtn) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn btn-danger';
+                    btn.style.cssText = 'padding: 2px 6px; font-size: 11px; margin-left: 4px;';
+                    btn.title = 'Удалить столбец';
+                    btn.textContent = '×';
+                    btn.onclick = function() {
+                        const header = this.closest('th');
+                        const currentIdx = Array.from(theadRow.querySelectorAll('th')).indexOf(header);
+                        removeCheckboxTemplateColumn(currentIdx);
+                    };
+                    th.appendChild(btn);
+                }
+            });
+        }
+
+        function removeCheckboxTemplateRow(btn) {
+            const tr = btn?.closest('tr');
+            if (tr && tr.parentElement?.querySelectorAll('tr').length > 1) tr.remove();
+        }
+
+        function saveCheckboxTemplate() {
+            const name = document.getElementById('checkboxTemplateName')?.value?.trim();
+            const data = buildCheckboxTemplateDataFromTable();
+            if (!name) {
+                showCheckboxTemplateStatus('Введите название чекбокс-шаблона', 'error');
+                return;
+            }
+            if (!data || data.columns.length < 2) {
+                showCheckboxTemplateStatus('Заполните таблицу: минимум 2 столбца (название + данные)', 'error');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('action', 'save_checkbox_template');
+            formData.append('template_name', name);
+            formData.append('template_data', JSON.stringify(data));
+            const cbs = document.querySelectorAll('#checkboxTemplateCompaniesCheckboxes input[name=checkbox_template_company_cb]:checked');
+            const ids = Array.from(cbs).map(c => c.value).filter(Boolean);
+            if (!ids.length) {
+                showCheckboxTemplateStatus('Выберите хотя бы одно предприятие', 'error');
+                return;
+            }
+            ids.forEach(id => formData.append('company_ids[]', id));
+            if (editingCheckboxTemplateId) {
+                formData.append('checkbox_template_id', editingCheckboxTemplateId);
+            }
+            fetch('admin.php', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(res => {
+                showCheckboxTemplateStatus(res.message, res.success ? 'success' : 'error');
+                if (res.success) {
+                    clearCheckboxTemplateForm();
+                    loadCheckboxTemplates();
+                }
+            })
+            .catch(err => showCheckboxTemplateStatus('Ошибка: ' + (err.message || err), 'error'));
+        }
+
+        function editCheckboxTemplate(id, companyId) {
+            const body = 'action=get_checkbox_template&id=' + id + (companyId ? '&company_id=' + companyId : '');
+            fetch('admin.php', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    const t = data.data;
+                    document.getElementById('checkboxTemplateName').value = t.TemplateName || '';
+                    let parsed = { columns: ['Название'], rows: [] };
+                    try {
+                        parsed = JSON.parse(t.TemplateData || '{}');
+                    } catch (e) {}
+                    if (parsed.columns && parsed.rows) {
+                        populateCheckboxTemplateTable(parsed);
+                    }
+                    editingCheckboxTemplateId = t.CheckboxTemplateID;
+                    editingCheckboxTemplateCompanyId = t.CompanyID;
+                    document.getElementById('checkboxTemplateCompaniesBlock').style.display = 'block';
+                    document.querySelectorAll('#checkboxTemplateCompaniesCheckboxes input[name=checkbox_template_company_cb]').forEach(function(cb) {
+                        cb.checked = (cb.value == t.CompanyID);
+                    });
+                    document.getElementById('saveCheckboxTemplateBtn').innerHTML = '<i class="fas fa-save"></i> Обновить';
+                    document.getElementById('clearCheckboxTemplateBtn').style.display = 'inline-block';
+                } else {
+                    showCheckboxTemplateStatus('Шаблон не найден', 'error');
+                }
+            })
+            .catch(err => showCheckboxTemplateStatus('Ошибка загрузки', 'error'));
+        }
+
+        function deleteCheckboxTemplate(id, companyId) {
+            const t = checkboxTemplates.find(x => x.CheckboxTemplateID == id && x.CompanyID == companyId);
+            if (!confirm('Удалить чекбокс-шаблон "' + (t?.TemplateName || '') + '"?')) return;
+            const formData = new FormData();
+            formData.append('action', 'delete_checkbox_template');
+            formData.append('id', id);
+            formData.append('company_id', companyId);
+            fetch('admin.php', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(res => {
+                showCheckboxTemplateStatus(res.message, res.success ? 'success' : 'error');
+                if (res.success) {
+                    clearCheckboxTemplateForm();
+                    loadCheckboxTemplates();
+                }
+            })
+            .catch(err => showCheckboxTemplateStatus('Ошибка удаления', 'error'));
+        }
+
+        function clearCheckboxTemplateForm() {
+            document.getElementById('checkboxTemplateName').value = '';
+            editingCheckboxTemplateId = null;
+            editingCheckboxTemplateCompanyId = null;
+            document.getElementById('checkboxTemplateCompaniesBlock').style.display = 'block';
+            document.querySelectorAll('#checkboxTemplateCompaniesCheckboxes input[name=checkbox_template_company_cb]').forEach(function(cb) { cb.checked = false; });
+            document.getElementById('saveCheckboxTemplateBtn').innerHTML = '<i class="fas fa-save"></i> Сохранить чекбокс-шаблон';
+            document.getElementById('clearCheckboxTemplateBtn').style.display = 'none';
+            populateCheckboxTemplateTable({
+                columns: ['Лава', 'ad', 'wrt'],
+                rows: [
+                    { label: 'Плановые показатели качества', values: ['37,8', '7,5'] },
+                    { label: 'Фактические показатели:', values: ['37,8', '6,6'] }
+                ]
+            });
+        }
+
+        function showCheckboxTemplateStatus(msg, type) {
+            const el = document.getElementById('checkboxTemplateStatusMessage');
+            if (el) {
+                el.textContent = msg;
+                el.className = 'status-message status-' + (type || 'info');
+                el.style.display = 'block';
+                setTimeout(() => { el.style.display = 'none'; }, 5000);
+            }
+        }
+
+        function displayCheckboxTemplatesTable() {
+            const container = document.getElementById('checkboxTemplatesTable');
+            if (!container) return;
+            if (!checkboxTemplates.length) {
+                container.innerHTML = '<p style="color:#666">Нет чекбокс-шаблонов</p>';
+                return;
+            }
+            let html = '<table class="data-table"><thead><tr><th>Предприятие</th><th>Название</th><th>Дата создания</th><th>Дата изменения</th><th>Создал/Обновил</th><th>Действия</th></tr></thead><tbody>';
+            checkboxTemplates.forEach(t => {
+                const created = t.CreatedAt ? (new Date(t.CreatedAt)).toLocaleString('ru-RU') : '—';
+                const updated = t.UpdatedAt ? (new Date(t.UpdatedAt)).toLocaleString('ru-RU') : '—';
+                const creator = t.CreatedByUsername || t.UpdatedByUsername || '—';
+                html += `<tr>
+                    <td>${escapeHtml(t.CompanyName || '—')}</td>
+                    <td><strong>${escapeHtml(t.TemplateName)}</strong></td>
+                    <td>${created}</td>
+                    <td>${updated}</td>
+                    <td>${escapeHtml(creator)}</td>
+                    <td>
+                        <button class="btn" onclick="editCheckboxTemplate(${t.CheckboxTemplateID}, ${t.CompanyID})" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;"><i class="fas fa-edit"></i> Редактировать</button>
+                        <button class="btn btn-danger" onclick="deleteCheckboxTemplate(${t.CheckboxTemplateID}, ${t.CompanyID})" style="padding: 5px 10px; font-size: 12px;"><i class="fas fa-trash"></i> Удалить</button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
         }
     </script>
 </body>

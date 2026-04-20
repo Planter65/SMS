@@ -14,6 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 try {
+    $smsSettings = loadSmsSettings();
+    $providerUsed = (string)($smsSettings['SMS_PROVIDER'] ?? (defined('SMS_PROVIDER') ? SMS_PROVIDER : 'emulation'));
+
     // Получение данных из формы
     $messageText = trim($_POST['messageText'] ?? '');
     $selectedRecipients = $_POST['recipients'] ?? [];
@@ -25,8 +28,8 @@ try {
         throw new Exception('Текст сообщения не может быть пустым');
     }
 
-    if (strlen($messageText) > 160) {
-        throw new Exception('Текст сообщения превышает 160 символов');
+    if (strlen($messageText) > 600) {
+        throw new Exception('Текст сообщения превышает 600 символов');
     }
 
     // Подключение к базе данных
@@ -106,8 +109,8 @@ try {
         $messageWithSender = $messageText;
         if (!empty($companyName)) {
             $senderSuffix = ' ' . $companyName;
-            // Проверяем, не превышает ли сообщение лимит в 160 символов
-            if (strlen($messageText . $senderSuffix) <= 160) {
+            // Проверяем, не превышает ли сообщение лимит в 600 символов
+            if (strlen($messageText . $senderSuffix) <= 600) {
                 $messageWithSender = $messageText . $senderSuffix;
             }
         }
@@ -115,8 +118,8 @@ try {
         // Отправка SMS через выбранный провайдер
         $result = sendSms($recipient['PhoneNumber'], $messageWithSender);
         
-        // Определяем статус для сохранения в БД
-        $status = $result['success'] ? 'Доставлено' : $result['status'];
+        // Определяем статус для сохранения в БД (для Beeline "accepted" ≠ "Доставлено")
+        $status = (string)($result['status'] ?? ($result['success'] ? 'Отправлено' : 'Ошибка'));
         
         // Сохранение лога отправки
         $stmt = $conn->prepare("INSERT INTO messagelogs (MessageID, RecipientID, Status, SentDate) VALUES (?, ?, ?, NOW())");
@@ -143,10 +146,19 @@ try {
     $conn->close();
 
     // Формирование ответа
+    $warning = null;
+    if ($providerUsed === 'emulation') {
+        $warning = 'Сейчас выбран провайдер emulation — реальные SMS не отправляются. Измените SMS_PROVIDER в таблице sms_settings или включите страницу настроек SMS.';
+    }
+
     $response = [
-        'success' => true,
-        'message' => "СМС отправлено успешно!",
+        'success' => $successCount > 0,
+        'message' => $successCount > 0
+            ? "СМС отправлено: {$successCount}, ошибок: {$errorCount}"
+            : "Не удалось отправить SMS. Ошибок: {$errorCount}",
         'details' => [
+            'provider' => $providerUsed,
+            'warning' => $warning,
             'messageId' => $messageId,
             'totalRecipients' => count($recipients),
             'successCount' => $successCount,

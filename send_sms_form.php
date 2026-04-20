@@ -14,10 +14,77 @@ $recipients = [];
 $groups = [];
 $templates = [];
 
+/**
+ * Автосинхронизация активных пользователей в recipients.
+ * Это нужно, потому что UI рассылки строится по таблице recipients,
+ * а пользователи добавляются в users.
+ */
+function syncActiveUsersToRecipients(mysqli $conn): void {
+    $sql = "SELECT Username, PhoneNumber, GroupID
+            FROM users
+            WHERE Status = 'active' AND PhoneNumber IS NOT NULL AND TRIM(PhoneNumber) <> ''";
+    $result = $conn->query($sql);
+    if (!$result) {
+        return;
+    }
+
+    $check = $conn->prepare("SELECT RecipientID, PhoneNumber FROM recipients WHERE FullName = ? LIMIT 1");
+    $insert = $conn->prepare("INSERT INTO recipients (PhoneNumber, FullName, GroupID) VALUES (?, ?, ?)");
+    $update = $conn->prepare("UPDATE recipients SET PhoneNumber = ?, GroupID = ? WHERE RecipientID = ?");
+
+    while ($userRow = $result->fetch_assoc()) {
+        $fullName = (string)($userRow['Username'] ?? '');
+        $phone = (string)($userRow['PhoneNumber'] ?? '');
+        $groupId = isset($userRow['GroupID']) && $userRow['GroupID'] !== '' ? (int)$userRow['GroupID'] : null;
+
+        $fullName = trim($fullName);
+        $phone = trim($phone);
+        if ($fullName === '' || $phone === '') {
+            continue;
+        }
+
+        $check->bind_param("s", $fullName);
+        $check->execute();
+        $existing = $check->get_result()->fetch_assoc();
+
+        if (!$existing) {
+            // bind null GroupID when needed
+            if ($groupId === null) {
+                $stmtNull = $conn->prepare("INSERT INTO recipients (PhoneNumber, FullName, GroupID) VALUES (?, ?, NULL)");
+                $stmtNull->bind_param("ss", $phone, $fullName);
+                @$stmtNull->execute();
+                $stmtNull->close();
+            } else {
+                $insert->bind_param("ssi", $phone, $fullName, $groupId);
+                @$insert->execute();
+            }
+        } else {
+            $recipientId = (int)$existing['RecipientID'];
+            $existingPhone = (string)($existing['PhoneNumber'] ?? '');
+            if ($existingPhone !== $phone || $groupId !== null) {
+                $gidForUpdate = $groupId ?? 0;
+                $update->bind_param("sii", $phone, $gidForUpdate, $recipientId);
+                @$update->execute();
+                if ($groupId === null) {
+                    // если у пользователя группы нет — не трогаем GroupID в recipients
+                    @$conn->query("UPDATE recipients SET PhoneNumber = '" . $conn->real_escape_string($phone) . "' WHERE RecipientID = " . $recipientId);
+                }
+            }
+        }
+    }
+
+    $check->close();
+    $insert->close();
+    $update->close();
+}
+
 try {
+    // Перед загрузкой списка получателей синхронизируем users -> recipients
+    syncActiveUsersToRecipients($conn);
+
     // Получаем список получателей
     $result = $conn->query("
-        SELECT r.RecipientID, r.FullName, r.PhoneNumber, g.GroupName 
+        SELECT r.RecipientID, r.FullName, r.PhoneNumber, r.GroupID, g.GroupName 
         FROM recipients r 
         LEFT JOIN groups g ON r.GroupID = g.GroupID 
         ORDER BY r.FullName
@@ -412,8 +479,8 @@ $conn->close();
 
                 <div class="form-group">
                     <label for="messageText">Текст сообщения:</label>
-                    <textarea id="messageText" name="messageText" maxlength="160" placeholder="Введите текст СМС сообщения (максимум 160 символов)" required></textarea>
-                    <div class="char-counter" id="charCounter">0 / 160</div>
+                    <textarea id="messageText" name="messageText" maxlength="600" placeholder="Введите текст СМС сообщения (максимум 600 символов)" required></textarea>
+                    <div class="char-counter" id="charCounter">0 / 600</div>
                 </div>
 
                 <div class="form-group">
@@ -441,7 +508,7 @@ $conn->close();
                     <div id="recipientsList">
                         <?php if (!empty($recipients)): ?>
                             <?php foreach ($recipients as $recipient): ?>
-                                <div class="recipient-item">
+                                <div class="recipient-item" data-group-id="<?php echo htmlspecialchars((string)($recipient['GroupID'] ?? '')); ?>">
                                     <input type="checkbox" name="recipients[]" value="<?php echo $recipient['RecipientID']; ?>" id="recipient_<?php echo $recipient['RecipientID']; ?>">
                                     <div class="recipient-info">
                                         <div class="recipient-name"><?php echo htmlspecialchars($recipient['FullName']); ?></div>
@@ -473,7 +540,7 @@ $conn->close();
         const messageText = document.getElementById('messageText');
         const charCounter = document.getElementById('charCounter');
         const templateSelect = document.getElementById('templateSelect');
-        const maxLength = 160;
+        const maxLength = 600;
 
         messageText.addEventListener('input', function() {
             const length = this.value.length;
@@ -525,19 +592,19 @@ $conn->close();
             const sendToAll = sendToAllEmployees.checked;
             
             recipientItems.forEach(item => {
-                const groupSpan = item.querySelector('.recipient-group');
+                const groupId = (item.getAttribute('data-group-id') || '').trim();
                 const checkbox = item.querySelector('input[type="checkbox"]');
                 
                 if (sendToAll) {
                     // При отправке всем сотрудникам показываем только группу "Сотрудники"
-                    if (groupSpan && groupSpan.textContent.trim() === 'Сотрудники') {
+                    if (groupId === '1') {
                         item.style.display = 'flex';
                         checkbox.checked = true;
                     } else {
                         item.style.display = 'none';
                         checkbox.checked = false;
                     }
-                } else if (!selectedGroup || (groupSpan && groupSpan.textContent.trim() === groupSelect.options[groupSelect.selectedIndex].text)) {
+                } else if (!selectedGroup || groupId === selectedGroup) {
                     item.style.display = 'flex';
                 } else {
                     item.style.display = 'none';
@@ -587,7 +654,7 @@ $conn->close();
             
             if (messageText.length > maxLength) {
                 e.preventDefault();
-                showStatus('Текст сообщения превышает 160 символов', 'error');
+                showStatus('Текст сообщения превышает 600 символов', 'error');
                 return;
             }
             

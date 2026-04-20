@@ -7,6 +7,35 @@
 require_once 'config.php';
 
 /**
+ * Normalize RU phone number to +7XXXXXXXXXX format.
+ */
+function normalizeRuPhone(string $raw): string {
+    $p = preg_replace('/[^0-9+]/', '', trim($raw));
+    if ($p === '') return '';
+    if ($p[0] !== '+') {
+        if (preg_match('/^[78]/', $p)) {
+            $p = '+7' . substr($p, 1);
+        } else {
+            $p = '+7' . $p;
+        }
+    }
+    return $p;
+}
+
+/**
+ * Load Beeline local config (gitignored) if present.
+ * Expected keys: login, password, host, sender
+ */
+function loadBeelineLocalConfig(): array {
+    $path = __DIR__ . DIRECTORY_SEPARATOR . 'local_beeline_sms_config.php';
+    if (!file_exists($path)) return [];
+    $cfg = [];
+    /** @noinspection PhpIncludeInspection */
+    require $path;
+    return is_array($cfg) ? $cfg : [];
+}
+
+/**
  * Создаем таблицу настроек SMS, если её нет
  */
 function ensureSmsSettingsTable($conn) {
@@ -19,7 +48,8 @@ function ensureSmsSettingsTable($conn) {
 }
 
 /**
- * Загружаем настройки SMS из БД с fallback на константы
+ * Загружаем настройки SMS из БД с fallback на константы.
+ * Настройки (в т.ч. API ключ, заданный администратором) применяются ко всем пользователям и админам.
  */
 function loadSmsSettings() {
     try {
@@ -40,7 +70,11 @@ function loadSmsSettings() {
         $settings['SMSRU_API_ID'] = $settings['SMSRU_API_ID'] ?? (defined('SMSRU_API_ID') ? SMSRU_API_ID : '');
         $settings['SMSCRU_LOGIN'] = $settings['SMSCRU_LOGIN'] ?? (defined('SMSCRU_LOGIN') ? SMSCRU_LOGIN : '');
         $settings['SMSCRU_PASSWORD'] = $settings['SMSCRU_PASSWORD'] ?? (defined('SMSCRU_PASSWORD') ? SMSCRU_PASSWORD : '');
-        $settings['API_KEY'] = $settings['API_KEY'] ?? (defined('API_KEY') ? API_KEY : '');
+        $settings['API_KEY'] = $settings['API_KEY'] ?? (defined('API_KEY') ? constant('API_KEY') : '');
+        $settings['BEELINE_LOGIN'] = $settings['BEELINE_LOGIN'] ?? '';
+        $settings['BEELINE_PASSWORD'] = $settings['BEELINE_PASSWORD'] ?? '';
+        $settings['BEELINE_HOST'] = $settings['BEELINE_HOST'] ?? '';
+        $settings['BEELINE_SENDER'] = $settings['BEELINE_SENDER'] ?? '';
 
         return $settings;
     } catch (Exception $e) {
@@ -50,7 +84,11 @@ function loadSmsSettings() {
             'SMSRU_API_ID' => defined('SMSRU_API_ID') ? SMSRU_API_ID : '',
             'SMSCRU_LOGIN' => defined('SMSCRU_LOGIN') ? SMSCRU_LOGIN : '',
             'SMSCRU_PASSWORD' => defined('SMSCRU_PASSWORD') ? SMSCRU_PASSWORD : '',
-            'API_KEY' => defined('API_KEY') ? API_KEY : '',
+            'API_KEY' => defined('API_KEY') ? constant('API_KEY') : '',
+            'BEELINE_LOGIN' => '',
+            'BEELINE_PASSWORD' => '',
+            'BEELINE_HOST' => '',
+            'BEELINE_SENDER' => '',
         ];
     }
 }
@@ -394,6 +432,103 @@ class EmulationProvider {
 }
 
 /**
+ * Beeline A2P HTTPS provider (QTSMS wrapper from API/HTTPS/test).
+ */
+class BeelineA2PProvider {
+    private string $login;
+    private string $password;
+    private string $host;
+    private string $sender;
+
+    public function __construct(string $login, string $password, string $host, string $sender) {
+        $this->login = $login;
+        $this->password = $password;
+        $this->host = $host;
+        $this->sender = $sender;
+    }
+
+    public function sendSms($phoneNumber, $message) {
+        $phone = normalizeRuPhone((string)$phoneNumber);
+        $text = trim((string)$message);
+
+        if ($this->login === '' || $this->password === '' || $this->host === '') {
+            return [
+                'success' => false,
+                'status' => 'Ошибка',
+                'message' => 'Beeline A2P не настроен: заполните login/password/host в local_beeline_sms_config.php или в sms_settings.'
+            ];
+        }
+        if ($this->sender === '') {
+            return [
+                'success' => false,
+                'status' => 'Ошибка',
+                'message' => 'Beeline A2P: не задан sender (подпись отправителя).'
+            ];
+        }
+        if ($phone === '' || !preg_match('/^\+\d{10,15}$/', $phone)) {
+            return [
+                'success' => false,
+                'status' => 'Ошибка',
+                'message' => 'Некорректный номер телефона.'
+            ];
+        }
+        if ($text === '') {
+            return [
+                'success' => false,
+                'status' => 'Ошибка',
+                'message' => 'Пустой текст сообщения.'
+            ];
+        }
+
+        try {
+            require_once __DIR__ . '/API/HTTPS/test/QTSMS.class.php';
+            $qtsms = new QTSMS($this->login, $this->password, $this->host);
+            $xml = (string)$qtsms->post_message($text, $phone, $this->sender);
+
+            // Parse minimal success indicators from XML
+            $smsId = null;
+            $smsGroupId = null;
+            $ok = false;
+            $parseError = null;
+            try {
+                $sx = @simplexml_load_string($xml);
+                if ($sx !== false) {
+                    $res = $sx->result ?? null;
+                    if ($res) {
+                        $attrs = $res->attributes();
+                        if ($attrs && isset($attrs['sms_group_id'])) $smsGroupId = (string)$attrs['sms_group_id'];
+                        if (isset($res->sms)) {
+                            $ok = true;
+                            $smsAttrs = $res->sms->attributes();
+                            if ($smsAttrs && isset($smsAttrs['id'])) $smsId = (string)$smsAttrs['id'];
+                        }
+                    }
+                } else {
+                    $parseError = 'Не удалось распарсить XML ответ.';
+                }
+            } catch (Throwable $e) {
+                $parseError = $e->getMessage();
+            }
+
+            return [
+                'success' => $ok,
+                'status' => $ok ? 'Отправлено' : 'Ошибка',
+                'message' => $ok ? 'SMS принято сервисом Beeline A2P' : ('Beeline A2P вернул ошибку.' . ($parseError ? ' ' . $parseError : '')),
+                'sms_id' => $smsId,
+                'sms_group_id' => $smsGroupId,
+                'raw' => $xml,
+            ];
+        } catch (Throwable $e) {
+            return [
+                'success' => false,
+                'status' => 'Ошибка',
+                'message' => 'Beeline A2P exception: ' . $e->getMessage()
+            ];
+        }
+    }
+}
+
+/**
  * Функция для получения провайдера SMS на основе конфигурации
  */
 function getSmsProvider() {
@@ -402,6 +537,23 @@ function getSmsProvider() {
     $providerType = $settings['SMS_PROVIDER'] ?? 'emulation';
     
     switch ($providerType) {
+        case 'beeline_a2p':
+            // Prefer DB settings, fallback to local config file (gitignored)
+            $login = (string)($settings['BEELINE_LOGIN'] ?? '');
+            $password = (string)($settings['BEELINE_PASSWORD'] ?? '');
+            $host = (string)($settings['BEELINE_HOST'] ?? '');
+            $sender = (string)($settings['BEELINE_SENDER'] ?? '');
+
+            if ($login === '' || $password === '' || $host === '' || $sender === '') {
+                $local = loadBeelineLocalConfig();
+                $login = $login !== '' ? $login : (string)($local['login'] ?? '');
+                $password = $password !== '' ? $password : (string)($local['password'] ?? '');
+                $host = $host !== '' ? $host : (string)($local['host'] ?? 'https://a2p-sms-https.beeline.ru/proto/http/');
+                $sender = $sender !== '' ? $sender : (string)($local['sender'] ?? '');
+            }
+
+            return new BeelineA2PProvider($login, $password, $host, $sender);
+
         case 'smsru':
             $apiId = $settings['SMSRU_API_ID'] ?? '';
             if (empty($apiId)) {

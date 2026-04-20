@@ -1,10 +1,10 @@
 <?php
 // Конфигурация подключения к базе данных
-define('DB_HOST', '134.90.167.42');     // Хост базы данных
-define('DB_PORT', 10306);               // Порт базы данных
-define('DB_USERNAME', 'Sabanov');       // Имя пользователя
-define('DB_PASSWORD', 'Udr-2t');        // Пароль
-define('DB_NAME', 'project_Sabanov');   // Имя базы данных
+define('DB_HOST', '127.0.0.1');     // Хост базы данных
+define('DB_PORT', 3306);               // Порт базы данных
+define('DB_USERNAME', 'root');       // Имя пользователя
+define('DB_PASSWORD', '');        // Пароль
+define('DB_NAME', 'sms_informing');   // Имя базы данных
 
 // Функция для подключения к базе данных
 function connectToDatabase() {
@@ -41,11 +41,12 @@ function testConnection() {
 // КОНФИГУРАЦИЯ SMS-ПРОВАЙДЕРОВ
 // ============================================
 
-// Тип провайдера: 'emulation', 'smsru', 'smscru'
+// Тип провайдера: 'emulation', 'smsru', 'smscru', 'beeline_a2p'
 // 'emulation' - эмуляция (для тестирования, не отправляет реальные SMS)
 // 'smsru' - SMS.ru (https://sms.ru)
 // 'smscru' - SMSC.ru (https://smsc.ru)
-define('SMS_PROVIDER', 'smsru');
+// 'beeline_a2p' - Beeline A2P HTTPS (настройки в local_beeline_sms_config.php)
+define('SMS_PROVIDER', 'beeline_a2p');
 
 // Настройки для SMS.ru
 // Получить API ID можно на https://sms.ru/?panel=api
@@ -55,6 +56,9 @@ define('SMSRU_API_ID', '91E32E3C-A381-6FCE-B8B6-5752285D0AB5'); // Вставь�
 // Зарегистрируйтесь на https://smsc.ru
 define('SMSCRU_LOGIN', '');    // Ваш логин от SMSC.ru
 define('SMSCRU_PASSWORD', ''); // Ваш пароль от SMSC.ru
+
+// Настройки для универсального провайдера с API ключом (если используется)
+define('API_KEY', '');
 
 // ============================================
 // ИНСТРУКЦИЯ ПО НАСТРОЙКЕ:

@@ -1,50 +1,43 @@
 <?php
 require_once 'auth.php';
 
-// Если пользователь уже авторизован и выбрал предприятие, перенаправляем на соответствующую страницу
-if (isLoggedIn() && getSelectedCompany() !== null) {
+// Если пользователь уже авторизован — перенаправляем в зависимости от роли и выбора предприятия
+if (isLoggedIn()) {
     $user = getCurrentUser();
     if ($user['role'] === 'admin') {
         header('Location: admin.php');
-    } else {
-        header('Location: user.php');
+        exit;
     }
+    if (getSelectedCompany() !== null) {
+        header('Location: user.php');
+        exit;
+    }
+    header('Location: choose_company.php');
     exit;
 }
 
 $error = '';
 $success = '';
-$companies = [];
-$selectedCompanyId = null;
-
-// Загружаем список предприятий
-$companies = getCompanies();
 
 // Обработка формы входа
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'login') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
-    $companyId = intval($_POST['company_id'] ?? 0);
     
     if (empty($username) || empty($password)) {
         $error = 'Заполните все поля';
-    } elseif ($companyId === 0) {
-        $error = 'Выберите предприятие';
     } else {
         $result = authenticateUser($username, $password);
         if ($result['success']) {
-            // Сохраняем выбранное предприятие в сессии после авторизации
-            setSelectedCompany($companyId);
-            // Перенаправляем на соответствующую страницу
+            // Администратор сразу переходит в админку; обычный пользователь — на выбор предприятия
             if ($result['role'] === 'admin') {
                 header('Location: admin.php');
             } else {
-                header('Location: user.php');
+                header('Location: choose_company.php');
             }
             exit;
         } else {
             $error = $result['message'];
-            $selectedCompanyId = $companyId; // Сохраняем выбранное предприятие при ошибке
         }
     }
 }
@@ -356,19 +349,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <div class="form-group">
                             <label for="password">Пароль:</label>
                             <input type="password" id="password" name="password" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="company_id">Предприятие:</label>
-                            <select id="company_id" name="company_id" required>
-                                <option value="">-- Выберите предприятие --</option>
-                                <?php foreach ($companies as $company): ?>
-                                    <option value="<?php echo $company['CompanyID']; ?>" 
-                                            <?php echo ($selectedCompanyId == $company['CompanyID']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($company['CompanyName']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
                         </div>
 
                         <button type="submit" class="btn">Войти</button>

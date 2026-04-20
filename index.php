@@ -328,8 +328,8 @@ exit;
                     
                     <div class="form-group">
                         <label for="messageText">Текст сообщения:</label>
-                        <textarea id="messageText" name="messageText" maxlength="160" placeholder="Введите текст СМС сообщения (максимум 160 символов)" required></textarea>
-                        <div class="char-counter" id="charCounter">0 / 160</div>
+                        <textarea id="messageText" name="messageText" maxlength="600" placeholder="Введите текст СМС сообщения (максимум 600 символов)" required></textarea>
+                        <div class="char-counter" id="charCounter">0 / 600</div>
                     </div>
 
                     <div class="form-group">
@@ -404,7 +404,7 @@ exit;
         // Счетчик символов
         const messageText = document.getElementById('messageText');
         const charCounter = document.getElementById('charCounter');
-        const maxLength = 160;
+        const maxLength = 600;
 
         messageText.addEventListener('input', function() {
             const length = this.value.length;
@@ -471,7 +471,7 @@ exit;
             
             if (messageText.length > maxLength) {
                 e.preventDefault();
-                showStatus('Текст сообщения превышает 160 символов', 'error');
+                showStatus('Текст сообщения превышает 600 символов', 'error');
                 return;
             }
             

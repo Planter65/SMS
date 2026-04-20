@@ -9,9 +9,9 @@ $userRole = $currentUser['role'] ?? 'guest';
 $username = $currentUser['username'] ?? '';
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 
-// Получаем название выбранного предприятия для администратора
+// Получаем название выбранного предприятия (для администратора и пользователя)
 $selectedCompanyName = '';
-if ($isLoggedIn && $userRole === 'admin' && function_exists('getSelectedCompany')) {
+if ($isLoggedIn && function_exists('getSelectedCompany')) {
     $companyId = getSelectedCompany();
     if ($companyId) {
         require_once 'config.php';
@@ -55,22 +55,10 @@ function isActive($page) {
                     <li class="nav-item">
                         <a href="user.php" class="nav-link <?php echo isActive('user'); ?>">Рабочий кабинет</a>
                     </li>
-                    <?php if ($userRole === 'admin'): ?>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle">Администрирование ▾</a>
-                            <div class="dropdown-menu">
-                                
-                                <a class="dropdown-link" href="sms_settings.php">Настройки SMS</a>
-                                
-                                <a class="dropdown-link" href="tb.php">Данные БД</a>
-                               
-                            </div>
-                        </li>
-                    <?php endif; ?>
                     <li class="nav-item">
                         <span class="nav-link">
                             👤 <?php echo htmlspecialchars($username); ?>
-                            <span class="pill"><?php echo $userRole === 'admin' ? 'Администратор' : 'Пользователь'; ?></span>
+                            <span class="pill"><?php echo $userRole === 'admin' ? 'Администратор' : ($userRole === 'recipient' ? 'Получатель' : 'Пользователь'); ?></span>
                         </span>
                     </li>
                     <li class="nav-item">

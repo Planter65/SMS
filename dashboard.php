@@ -84,7 +84,6 @@ try {
         <div class="actions">
             <?php if (($user['role'] ?? '') === 'admin'): ?>
                 <a class="btn btn-ghost" href="admin.php">Панель администратора</a>
-                <a class="btn btn-ghost" href="sms_settings.php">Настройки SMS</a>
                 <a class="btn btn-ghost" href="test_connection.php">Тест подключения</a>
                 <a class="btn btn-ghost" href="tb.php">Просмотр данных</a>
             <?php endif; ?>
@@ -100,9 +99,9 @@ try {
             <h3 style="margin-top:0;">💬 Новое СМС</h3>
             <form id="smsComposer">
                 <div class="form-group">
-                    <label for="messageText">Текст сообщения (до 160 символов)</label>
-                    <textarea id="messageText" name="messageText" maxlength="160" required placeholder="Например: Сегодня в 10:00 состоится плановое совещание." disabled></textarea>
-                    <div class="char-counter" id="charCounter">0 / 160</div>
+                    <label for="messageText">Текст сообщения (до 600 символов)</label>
+                    <textarea id="messageText" name="messageText" maxlength="600" required placeholder="Например: Сегодня в 10:00 состоится плановое совещание." disabled></textarea>
+                    <div class="char-counter" id="charCounter">0 / 600</div>
                 </div>
 
                 <div class="toolbar" style="margin-top: 12px;">
@@ -180,7 +179,7 @@ const sendForm = document.getElementById('smsComposer');
 
 function updateCounter() {
     const len = messageInput.value.length;
-    charCounter.textContent = `${len} / 160`;
+    charCounter.textContent = `${len} / 600`;
     charCounter.classList.toggle('warning', len > 130 && len <= 150);
     charCounter.classList.toggle('danger', len > 150);
 }

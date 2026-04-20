@@ -1,0 +1,2571 @@
+{
+    "meta": {
+        "created_at": "2026-03-13T02:47:26+01:00",
+        "host": "localhost:3000",
+        "script": "\/admin.php"
+    },
+    "data": {
+        "groups": [
+            {
+                "GroupID": "1",
+                "GroupName": "Сотрудники"
+            },
+            {
+                "GroupID": "2",
+                "GroupName": "Клиенты"
+            },
+            {
+                "GroupID": "3",
+                "GroupName": "Поставщики"
+            },
+            {
+                "GroupID": "4",
+                "GroupName": "Руководство"
+            },
+            {
+                "GroupID": "5",
+                "GroupName": "IT отдел"
+            }
+        ],
+        "recipients": [
+            {
+                "RecipientID": "2",
+                "PhoneNumber": "70000000002",
+                "FullName": "user",
+                "GroupID": "1"
+            },
+            {
+                "RecipientID": "3",
+                "PhoneNumber": "+79505850016",
+                "FullName": "Илья",
+                "GroupID": "4"
+            },
+            {
+                "RecipientID": "4",
+                "PhoneNumber": "70000000010",
+                "FullName": "Дима",
+                "GroupID": "1"
+            },
+            {
+                "RecipientID": "5",
+                "PhoneNumber": "70000000011",
+                "FullName": "Данил",
+                "GroupID": "1"
+            },
+            {
+                "RecipientID": "7",
+                "PhoneNumber": "+79505850017",
+                "FullName": "Никита",
+                "GroupID": "1"
+            }
+        ],
+        "messages": [
+            {
+                "MessageID": "1",
+                "Text": "Сделай отчет"
+            },
+            {
+                "MessageID": "2",
+                "Text": "Дима скинь работу"
+            },
+            {
+                "MessageID": "6",
+                "Text": "Спасибо"
+            },
+            {
+                "MessageID": "7",
+                "Text": "rere"
+            },
+            {
+                "MessageID": "8",
+                "Text": "rere"
+            },
+            {
+                "MessageID": "9",
+                "Text": "Спасибо"
+            },
+            {
+                "MessageID": "10",
+                "Text": "Спасибо"
+            },
+            {
+                "MessageID": "11",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "12",
+                "Text": "КУ-ку"
+            },
+            {
+                "MessageID": "13",
+                "Text": "епта"
+            },
+            {
+                "MessageID": "14",
+                "Text": "Ghbdtncnde."
+            },
+            {
+                "MessageID": "15",
+                "Text": "ненен"
+            },
+            {
+                "MessageID": "16",
+                "Text": "Куку"
+            },
+            {
+                "MessageID": "17",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "18",
+                "Text": "Rere"
+            },
+            {
+                "MessageID": "19",
+                "Text": "Нужно в бухгалтерию отнести бумаги."
+            },
+            {
+                "MessageID": "20",
+                "Text": "Помоги"
+            },
+            {
+                "MessageID": "21",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "22",
+                "Text": "Ку-ку"
+            },
+            {
+                "MessageID": "23",
+                "Text": "ку"
+            },
+            {
+                "MessageID": "24",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "25",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "26",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "27",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "28",
+                "Text": "123"
+            },
+            {
+                "MessageID": "29",
+                "Text": "Нужен отчет по практике"
+            },
+            {
+                "MessageID": "30",
+                "Text": "сюда"
+            },
+            {
+                "MessageID": "31",
+                "Text": "куку"
+            },
+            {
+                "MessageID": "32",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "33",
+                "Text": "Привет"
+            },
+            {
+                "MessageID": "34",
+                "Text": "Дорогой коллега. Нужно в 12:00 придти и помочь администратору с кодом."
+            },
+            {
+                "MessageID": "35",
+                "Text": "Завтра можешь не приходить."
+            },
+            {
+                "MessageID": "36",
+                "Text": "12345"
+            },
+            {
+                "MessageID": "37",
+                "Text": "12345"
+            },
+            {
+                "MessageID": "38",
+                "Text": "123gdskgdsg"
+            },
+            {
+                "MessageID": "39",
+                "Text": "zsiuthhdxrti"
+            },
+            {
+                "MessageID": "40",
+                "Text": "Добрый день! Шахта им. С.М. Кирова. По шахте  Лава 25-65  ad-37%"
+            },
+            {
+                "MessageID": "41",
+                "Text": "Добрый день! Шахта им. С.М. Кирова. По шахте Предельная  ad-37%"
+            },
+            {
+                "MessageID": "42",
+                "Text": "Добрый день! Шахта им. С.М. Кирова. По шахте  ad-37%"
+            },
+            {
+                "MessageID": "43",
+                "Text": "Добрый день! Шахта им. С.М. Кирова. По шахте  ad-37%"
+            },
+            {
+                "MessageID": "44",
+                "Text": "состав угля состалвяет -25% угля"
+            },
+            {
+                "MessageID": "45",
+                "Text": "Здравствуйте. Плановые показатели качества: ad-37,8 Wrt-7,5; Фактические показатели: ad-37,8 Wrt-6,6"
+            },
+            {
+                "MessageID": "46",
+                "Text": "Здравствуйте. Плановые показатели качества: ad-37,8 Wrt-7,5; Фактические показатели: ad-37,8 Wrt-6,6"
+            }
+        ],
+        "messagelogs": [
+            {
+                "LogID": "58",
+                "MessageID": "46",
+                "RecipientID": "3",
+                "Status": "Доставлено",
+                "SentDate": "2026-02-24 09:34:53"
+            },
+            {
+                "LogID": "57",
+                "MessageID": "45",
+                "RecipientID": "2",
+                "Status": "Доставлено",
+                "SentDate": "2026-02-24 09:34:50"
+            },
+            {
+                "LogID": "56",
+                "MessageID": "44",
+                "RecipientID": "5",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:38:30"
+            },
+            {
+                "LogID": "55",
+                "MessageID": "43",
+                "RecipientID": "7",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:03:50"
+            },
+            {
+                "LogID": "54",
+                "MessageID": "43",
+                "RecipientID": "4",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:03:47"
+            },
+            {
+                "LogID": "53",
+                "MessageID": "43",
+                "RecipientID": "5",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:03:44"
+            },
+            {
+                "LogID": "52",
+                "MessageID": "43",
+                "RecipientID": "2",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-18 10:03:41"
+            },
+            {
+                "LogID": "51",
+                "MessageID": "42",
+                "RecipientID": "7",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:03:35"
+            },
+            {
+                "LogID": "50",
+                "MessageID": "42",
+                "RecipientID": "4",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:03:32"
+            },
+            {
+                "LogID": "49",
+                "MessageID": "42",
+                "RecipientID": "5",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:03:29"
+            },
+            {
+                "LogID": "48",
+                "MessageID": "42",
+                "RecipientID": "2",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 10:03:26"
+            },
+            {
+                "LogID": "47",
+                "MessageID": "41",
+                "RecipientID": "2",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 09:41:47"
+            },
+            {
+                "LogID": "46",
+                "MessageID": "40",
+                "RecipientID": "2",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-18 08:52:33"
+            },
+            {
+                "LogID": "45",
+                "MessageID": "39",
+                "RecipientID": "5",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-17 10:52:14"
+            },
+            {
+                "LogID": "44",
+                "MessageID": "38",
+                "RecipientID": "3",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-17 10:46:10"
+            },
+            {
+                "LogID": "43",
+                "MessageID": "37",
+                "RecipientID": "5",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-15 11:26:28"
+            },
+            {
+                "LogID": "42",
+                "MessageID": "36",
+                "RecipientID": "5",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-15 11:26:23"
+            },
+            {
+                "LogID": "34",
+                "MessageID": "28",
+                "RecipientID": "7",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:16"
+            },
+            {
+                "LogID": "32",
+                "MessageID": "28",
+                "RecipientID": "5",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:16"
+            },
+            {
+                "LogID": "31",
+                "MessageID": "28",
+                "RecipientID": "4",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:15"
+            },
+            {
+                "LogID": "30",
+                "MessageID": "28",
+                "RecipientID": "3",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:15"
+            },
+            {
+                "LogID": "29",
+                "MessageID": "28",
+                "RecipientID": "2",
+                "Status": "Ошибка",
+                "SentDate": "2025-12-11 16:07:15"
+            },
+            {
+                "LogID": "21",
+                "MessageID": "21",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-12-11 10:11:32"
+            },
+            {
+                "LogID": "20",
+                "MessageID": "20",
+                "RecipientID": "4",
+                "Status": "Доставлено",
+                "SentDate": "2025-12-11 10:00:44"
+            },
+            {
+                "LogID": "19",
+                "MessageID": "19",
+                "RecipientID": "4",
+                "Status": "sent",
+                "SentDate": "2025-11-26 15:52:53"
+            },
+            {
+                "LogID": "18",
+                "MessageID": "18",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-20 10:26:22"
+            },
+            {
+                "LogID": "17",
+                "MessageID": "17",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-20 10:15:27"
+            },
+            {
+                "LogID": "16",
+                "MessageID": "16",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-20 10:14:23"
+            },
+            {
+                "LogID": "15",
+                "MessageID": "15",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 19:10:47"
+            },
+            {
+                "LogID": "14",
+                "MessageID": "14",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 19:07:29"
+            },
+            {
+                "LogID": "13",
+                "MessageID": "13",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 19:02:13"
+            },
+            {
+                "LogID": "12",
+                "MessageID": "12",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 18:49:32"
+            },
+            {
+                "LogID": "11",
+                "MessageID": "11",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 18:45:29"
+            },
+            {
+                "LogID": "10",
+                "MessageID": "10",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 18:06:28"
+            },
+            {
+                "LogID": "9",
+                "MessageID": "9",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 17:42:39"
+            },
+            {
+                "LogID": "8",
+                "MessageID": "8",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 17:03:25"
+            },
+            {
+                "LogID": "7",
+                "MessageID": "7",
+                "RecipientID": "5",
+                "Status": "sent",
+                "SentDate": "2025-10-19 17:01:30"
+            },
+            {
+                "LogID": "6",
+                "MessageID": "6",
+                "RecipientID": "3",
+                "Status": "sent",
+                "SentDate": "2025-10-19 16:58:29"
+            }
+        ],
+        "users": [
+            {
+                "UserID": "2",
+                "Username": "user",
+                "PhoneNumber": "",
+                "PasswordHash": "$2y$10$OMBKnLwQDY0GbdbQXnnI.eWi1XQ1gtfk5CCBsVdpvQy1Ho2RUpxzS",
+                "Role": "user",
+                "GroupID": "1",
+                "Status": "active",
+                "PasswordCreatedAt": "2025-09-29 09:17:08",
+                "FailedLoginCount": "0",
+                "LastFailedLoginAt": "2025-10-01 14:47:50",
+                "CreatedAt": "2025-09-29 09:17:08",
+                "UpdatedAt": "2026-02-24 09:31:13"
+            },
+            {
+                "UserID": "13",
+                "Username": "Никита",
+                "PhoneNumber": "+79505850017",
+                "PasswordHash": "$2y$10$Q0Xo5CNCzQxbn9\/F6y896uZ7.EO9rmEdhJ8T2Btdsd4.ju4td1e7S",
+                "Role": "user",
+                "GroupID": "5",
+                "Status": "active",
+                "PasswordCreatedAt": "2025-12-11 15:52:31",
+                "FailedLoginCount": "0",
+                "LastFailedLoginAt": "2026-02-24 09:27:35",
+                "CreatedAt": "2025-12-11 15:52:31",
+                "UpdatedAt": "2026-02-24 09:28:44"
+            },
+            {
+                "UserID": "14",
+                "Username": "Илья",
+                "PhoneNumber": "+79505850016",
+                "PasswordHash": "$2y$10$8wa6I8BV1.Vawj6P8H8hfeg9bsWrHpCfG6sp7r0Tfw8E.UrNHZHRK",
+                "Role": "admin",
+                "GroupID": "5",
+                "Status": "active",
+                "PasswordCreatedAt": "2026-02-15 00:00:00",
+                "FailedLoginCount": "0",
+                "LastFailedLoginAt": null,
+                "CreatedAt": "2026-02-15 00:00:00",
+                "UpdatedAt": "2026-02-24 09:30:53"
+            }
+        ],
+        "companies": [
+            {
+                "CompanyID": "1",
+                "CompanyName": "Шахта им. С.М. Кирова"
+            },
+            {
+                "CompanyID": "2",
+                "CompanyName": "Шахта им. Рубана"
+            }
+        ],
+        "user_companies": [
+            {
+                "UserID": "2",
+                "CompanyID": "1"
+            },
+            {
+                "UserID": "2",
+                "CompanyID": "2"
+            },
+            {
+                "UserID": "13",
+                "CompanyID": "1"
+            },
+            {
+                "UserID": "13",
+                "CompanyID": "2"
+            },
+            {
+                "UserID": "14",
+                "CompanyID": "1"
+            },
+            {
+                "UserID": "14",
+                "CompanyID": "2"
+            }
+        ],
+        "user_messages": [
+            {
+                "UserMessageID": "39",
+                "SenderID": "13",
+                "MessageID": "46",
+                "RecipientID": "3",
+                "SentDate": "2026-02-24 09:34:53",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "38",
+                "SenderID": "13",
+                "MessageID": "45",
+                "RecipientID": "2",
+                "SentDate": "2026-02-24 09:34:51",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "37",
+                "SenderID": "12",
+                "MessageID": "44",
+                "RecipientID": "5",
+                "SentDate": "2025-12-18 10:38:31",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "36",
+                "SenderID": "12",
+                "MessageID": "43",
+                "RecipientID": "7",
+                "SentDate": "2025-12-18 10:03:50",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "35",
+                "SenderID": "12",
+                "MessageID": "43",
+                "RecipientID": "4",
+                "SentDate": "2025-12-18 10:03:47",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "34",
+                "SenderID": "12",
+                "MessageID": "43",
+                "RecipientID": "5",
+                "SentDate": "2025-12-18 10:03:44",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "33",
+                "SenderID": "12",
+                "MessageID": "43",
+                "RecipientID": "2",
+                "SentDate": "2025-12-18 10:03:42",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "32",
+                "SenderID": "12",
+                "MessageID": "42",
+                "RecipientID": "7",
+                "SentDate": "2025-12-18 10:03:35",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "31",
+                "SenderID": "12",
+                "MessageID": "42",
+                "RecipientID": "4",
+                "SentDate": "2025-12-18 10:03:32",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "30",
+                "SenderID": "12",
+                "MessageID": "42",
+                "RecipientID": "5",
+                "SentDate": "2025-12-18 10:03:29",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "29",
+                "SenderID": "12",
+                "MessageID": "42",
+                "RecipientID": "2",
+                "SentDate": "2025-12-18 10:03:26",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "28",
+                "SenderID": "12",
+                "MessageID": "41",
+                "RecipientID": "2",
+                "SentDate": "2025-12-18 09:41:47",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "27",
+                "SenderID": "0",
+                "MessageID": "40",
+                "RecipientID": "2",
+                "SentDate": "2025-12-18 08:52:33",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "26",
+                "SenderID": "0",
+                "MessageID": "39",
+                "RecipientID": "5",
+                "SentDate": "2025-12-17 10:52:15",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "25",
+                "SenderID": "0",
+                "MessageID": "38",
+                "RecipientID": "3",
+                "SentDate": "2025-12-17 10:46:10",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "24",
+                "SenderID": "0",
+                "MessageID": "37",
+                "RecipientID": "5",
+                "SentDate": "2025-12-15 11:26:29",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "23",
+                "SenderID": "0",
+                "MessageID": "36",
+                "RecipientID": "5",
+                "SentDate": "2025-12-15 11:26:23",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "22",
+                "SenderID": "0",
+                "MessageID": "35",
+                "RecipientID": "1",
+                "SentDate": "2025-12-15 08:25:24",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "21",
+                "SenderID": "0",
+                "MessageID": "34",
+                "RecipientID": "1",
+                "SentDate": "2025-12-12 10:06:23",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "20",
+                "SenderID": "0",
+                "MessageID": "33",
+                "RecipientID": "1",
+                "SentDate": "2025-12-12 10:04:49",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "19",
+                "SenderID": "0",
+                "MessageID": "32",
+                "RecipientID": "1",
+                "SentDate": "2025-12-12 10:04:01",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "18",
+                "SenderID": "0",
+                "MessageID": "31",
+                "RecipientID": "1",
+                "SentDate": "2025-12-12 10:03:50",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "17",
+                "SenderID": "0",
+                "MessageID": "30",
+                "RecipientID": "1",
+                "SentDate": "2025-12-11 17:52:23",
+                "ReadStatus": "read",
+                "ReadDate": "2025-12-12 08:10:00"
+            },
+            {
+                "UserMessageID": "16",
+                "SenderID": "0",
+                "MessageID": "29",
+                "RecipientID": "1",
+                "SentDate": "2025-12-11 16:48:08",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "15",
+                "SenderID": "0",
+                "MessageID": "27",
+                "RecipientID": "6",
+                "SentDate": "2025-12-11 13:47:52",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "14",
+                "SenderID": "0",
+                "MessageID": "26",
+                "RecipientID": "6",
+                "SentDate": "2025-12-11 13:47:49",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "13",
+                "SenderID": "0",
+                "MessageID": "25",
+                "RecipientID": "6",
+                "SentDate": "2025-12-11 13:47:45",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "12",
+                "SenderID": "0",
+                "MessageID": "24",
+                "RecipientID": "6",
+                "SentDate": "2025-12-11 13:47:43",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "11",
+                "SenderID": "0",
+                "MessageID": "23",
+                "RecipientID": "6",
+                "SentDate": "2025-12-11 13:36:55",
+                "ReadStatus": "read",
+                "ReadDate": "2025-12-11 13:36:57"
+            },
+            {
+                "UserMessageID": "10",
+                "SenderID": "0",
+                "MessageID": "22",
+                "RecipientID": "6",
+                "SentDate": "2025-12-11 10:12:45",
+                "ReadStatus": "read",
+                "ReadDate": "2025-12-11 13:36:58"
+            },
+            {
+                "UserMessageID": "9",
+                "SenderID": "0",
+                "MessageID": "21",
+                "RecipientID": "5",
+                "SentDate": "2025-12-11 10:11:32",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "8",
+                "SenderID": "0",
+                "MessageID": "20",
+                "RecipientID": "4",
+                "SentDate": "2025-12-11 10:00:44",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "7",
+                "SenderID": "0",
+                "MessageID": "19",
+                "RecipientID": "4",
+                "SentDate": "2025-11-26 15:52:53",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "6",
+                "SenderID": "0",
+                "MessageID": "18",
+                "RecipientID": "5",
+                "SentDate": "2025-10-20 10:26:22",
+                "ReadStatus": "unread",
+                "ReadDate": null
+            },
+            {
+                "UserMessageID": "5",
+                "SenderID": "0",
+                "MessageID": "17",
+                "RecipientID": "5",
+                "SentDate": "2025-10-20 10:15:27",
+                "ReadStatus": "read",
+                "ReadDate": "2025-10-20 10:15:39"
+            },
+            {
+                "UserMessageID": "4",
+                "SenderID": "0",
+                "MessageID": "16",
+                "RecipientID": "5",
+                "SentDate": "2025-10-20 10:14:24",
+                "ReadStatus": "read",
+                "ReadDate": "2025-10-20 10:14:43"
+            },
+            {
+                "UserMessageID": "3",
+                "SenderID": "0",
+                "MessageID": "15",
+                "RecipientID": "3",
+                "SentDate": "2025-10-19 19:10:47",
+                "ReadStatus": "read",
+                "ReadDate": "2025-10-20 09:33:34"
+            },
+            {
+                "UserMessageID": "2",
+                "SenderID": "0",
+                "MessageID": "14",
+                "RecipientID": "5",
+                "SentDate": "2025-10-19 19:07:29",
+                "ReadStatus": "read",
+                "ReadDate": "2025-10-19 20:20:07"
+            },
+            {
+                "UserMessageID": "1",
+                "SenderID": "0",
+                "MessageID": "10",
+                "RecipientID": "3",
+                "SentDate": "2025-10-19 18:06:28",
+                "ReadStatus": "read",
+                "ReadDate": "2025-10-19 19:24:54"
+            }
+        ],
+        "system_logs": [
+            {
+                "LogID": "173",
+                "Category": "checkbox_templates",
+                "Action": "update",
+                "Details": "Обновлен чекбокс-шаблон ID=1: Лава",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 10:31:48"
+            },
+            {
+                "LogID": "172",
+                "Category": "checkbox_templates",
+                "Action": "update",
+                "Details": "Обновлен чекбокс-шаблон ID=1: Лава",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 10:08:40"
+            },
+            {
+                "LogID": "171",
+                "Category": "checkbox_templates",
+                "Action": "delete",
+                "Details": "Удален чекбокс-шаблон ID=2",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:39:08"
+            },
+            {
+                "LogID": "170",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "Рассылка: 2 получателей",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:34:54"
+            },
+            {
+                "LogID": "169",
+                "Category": "user",
+                "Action": "sms_template_add",
+                "Details": "Добавлен шаблон: Приветствие",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:33:34"
+            },
+            {
+                "LogID": "168",
+                "Category": "user",
+                "Action": "sms_template_add",
+                "Details": "Добавлен шаблон: Приветствие",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:33:30"
+            },
+            {
+                "LogID": "167",
+                "Category": "user",
+                "Action": "sms_template_add",
+                "Details": "Добавлен шаблон: Приветствие",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:33:27"
+            },
+            {
+                "LogID": "166",
+                "Category": "user",
+                "Action": "sms_template_add",
+                "Details": "Добавлен шаблон: Приветствие",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:33:24"
+            },
+            {
+                "LogID": "165",
+                "Category": "user",
+                "Action": "sms_template_add",
+                "Details": "Добавлен шаблон: Приветствие",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:33:21"
+            },
+            {
+                "LogID": "164",
+                "Category": "users",
+                "Action": "update_companies",
+                "Details": "Обновлена привязка предприятий для пользователя ID=2",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:31:17"
+            },
+            {
+                "LogID": "163",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=2, имя: user, роль: user",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:31:14"
+            },
+            {
+                "LogID": "162",
+                "Category": "users",
+                "Action": "update_companies",
+                "Details": "Обновлена привязка предприятий для пользователя ID=14",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:30:57"
+            },
+            {
+                "LogID": "161",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=14, имя: Илья, роль: admin, телефон: +79505850016",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:30:54"
+            },
+            {
+                "LogID": "160",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 0 пользователей",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:30:08"
+            },
+            {
+                "LogID": "159",
+                "Category": "users",
+                "Action": "update_companies",
+                "Details": "Обновлена привязка предприятий для пользователя ID=13",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:28:25"
+            },
+            {
+                "LogID": "158",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=13, имя: Никита, роль: user, телефон: +79505850017",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:28:22"
+            },
+            {
+                "LogID": "157",
+                "Category": "checkbox_templates",
+                "Action": "add",
+                "Details": "Добавлен чекбокс-шаблон: Лава на 2 предприятий",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2026-02-24 09:26:42"
+            },
+            {
+                "LogID": "156",
+                "Category": "users",
+                "Action": "delete",
+                "Details": "Удален пользователь ID=11",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-18 10:38:50"
+            },
+            {
+                "LogID": "155",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: состав угля состалвяет -25% угля; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-18 10:38:32"
+            },
+            {
+                "LogID": "154",
+                "Category": "sms_templates",
+                "Action": "add",
+                "Details": "Добавлен шаблон SMS: Для производства",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-18 10:38:12"
+            },
+            {
+                "LogID": "153",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Добрый день! Шахта им. С.М. Кирова. По шахте  ad-37%; получателей: 4; отправлено: 3; ошибки: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-18 10:03:52"
+            },
+            {
+                "LogID": "152",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Добрый день! Шахта им. С.М. Кирова. По шахте  ad-37%; получателей: 4; отправлено: 4; ошибки: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-18 10:03:36"
+            },
+            {
+                "LogID": "151",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Добрый день! Шахта им. С.М. Кирова. По шахте Предельная  ad-37%; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-18 09:41:48"
+            },
+            {
+                "LogID": "150",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Добрый день! Шахта им. С.М. Кирова. По шахте  Лава 25-65  ad-37%; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-18 08:52:34"
+            },
+            {
+                "LogID": "149",
+                "Category": "sms_templates",
+                "Action": "add",
+                "Details": "Добавлен шаблон SMS: Плановый показатель качества",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 19:19:08"
+            },
+            {
+                "LogID": "148",
+                "Category": "sms_templates",
+                "Action": "add",
+                "Details": "Добавлен шаблон SMS: Приветствие",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 19:12:09"
+            },
+            {
+                "LogID": "147",
+                "Category": "sms_templates",
+                "Action": "add",
+                "Details": "Добавлен шаблон SMS: Лава 25-65",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 19:11:34"
+            },
+            {
+                "LogID": "146",
+                "Category": "groups",
+                "Action": "delete",
+                "Details": "Удалена группа ID=6",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 19:10:26"
+            },
+            {
+                "LogID": "145",
+                "Category": "groups",
+                "Action": "delete",
+                "Details": "Удалена группа ID=7",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 19:10:24"
+            },
+            {
+                "LogID": "144",
+                "Category": "groups",
+                "Action": "add",
+                "Details": "Добавлена группа: <script>alert(\"fff\")<\/script>",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 11:29:05"
+            },
+            {
+                "LogID": "143",
+                "Category": "groups",
+                "Action": "add",
+                "Details": "Добавлена группа: <script>alert(\"fff\")<\/script>",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 11:29:02"
+            },
+            {
+                "LogID": "142",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: zsiuthhdxrti; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 10:52:17"
+            },
+            {
+                "LogID": "141",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: 123gdskgdsg; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-17 10:46:12"
+            },
+            {
+                "LogID": "140",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=12, имя: Илья, роль: admin, телефон: +79505850016",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-16 09:58:01"
+            },
+            {
+                "LogID": "139",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: 12345; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-15 11:26:30"
+            },
+            {
+                "LogID": "138",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: 12345; получателей: 1; отправлено: 0; ошибки: 1",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-15 11:26:24"
+            },
+            {
+                "LogID": "137",
+                "Category": "backup",
+                "Action": "create",
+                "Details": "Создан бекап backup_2025-12-15_03-19-31.json",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-15 09:23:35"
+            },
+            {
+                "LogID": "136",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Завтра можешь не приходить.; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-15 08:25:25"
+            },
+            {
+                "LogID": "135",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 21",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-14 13:45:00"
+            },
+            {
+                "LogID": "134",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 11:07:17"
+            },
+            {
+                "LogID": "133",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 21",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 10:06:33"
+            },
+            {
+                "LogID": "132",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Дорогой коллега. Нужно в 12:00 придти и помочь администратору с кодом.; получателей: 1; отправлено: 0; ошибки: 1",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 10:06:24"
+            },
+            {
+                "LogID": "131",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получателей: 1; отправлено: 1; ошибки: 0",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 10:04:50"
+            },
+            {
+                "LogID": "130",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получателей: 1; отправлено: 0; ошибки: 1",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 10:04:03"
+            },
+            {
+                "LogID": "129",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: куку; получателей: 1; отправлено: 0; ошибки: 1",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 10:03:51"
+            },
+            {
+                "LogID": "128",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 09:57:08"
+            },
+            {
+                "LogID": "127",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 09:23:57"
+            },
+            {
+                "LogID": "126",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 09:23:51"
+            },
+            {
+                "LogID": "125",
+                "Category": "backup",
+                "Action": "create",
+                "Details": "Создан бекап backup_2025-12-12_02-08-31.json",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 08:12:21"
+            },
+            {
+                "LogID": "124",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 17",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 08:10:01"
+            },
+            {
+                "LogID": "123",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-12 08:09:54"
+            },
+            {
+                "LogID": "122",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 18:27:31"
+            },
+            {
+                "LogID": "121",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: сюда; получателей: 1; отправлено: 0; ошибки: 1",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 17:52:23"
+            },
+            {
+                "LogID": "120",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 17:07:49"
+            },
+            {
+                "LogID": "119",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 16",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 17:05:32"
+            },
+            {
+                "LogID": "118",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 16",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 17:05:31"
+            },
+            {
+                "LogID": "117",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 16",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 17:02:13"
+            },
+            {
+                "LogID": "116",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 16",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 17:02:12"
+            },
+            {
+                "LogID": "115",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 16:54:48"
+            },
+            {
+                "LogID": "114",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Нужен отчет по практике; получателей: 1; отправлено: 0; ошибки: 1",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 16:48:09"
+            },
+            {
+                "LogID": "113",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 16:15:23"
+            },
+            {
+                "LogID": "112",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 16:07:59"
+            },
+            {
+                "LogID": "111",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 2",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 16:07:58"
+            },
+            {
+                "LogID": "110",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 1 пользователей",
+                "PerformedBy": "Никита",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 15:52:52"
+            },
+            {
+                "LogID": "109",
+                "Category": "users",
+                "Action": "add",
+                "Details": "Добавлен пользователь: Никита, роль: user, телефон: +79505850017",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 15:52:31"
+            },
+            {
+                "LogID": "108",
+                "Category": "users",
+                "Action": "delete",
+                "Details": "Удален пользователь ID=4",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 15:49:32"
+            },
+            {
+                "LogID": "107",
+                "Category": "users",
+                "Action": "delete",
+                "Details": "Удален пользователь ID=10",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 15:49:27"
+            },
+            {
+                "LogID": "106",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 3",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 15:45:46"
+            },
+            {
+                "LogID": "105",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 3",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 15:40:14"
+            },
+            {
+                "LogID": "104",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=4, имя: Илья, роль: admin",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 15:40:03"
+            },
+            {
+                "LogID": "103",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получатель ID: 6; SMS не отправлено: Для работы с нашим сервисом, необходимо создать буквенного отправителя, соответствующего вашему сайту, названию юр. лица или товарному знаку - https:\/\/sms.ru\/?panel=senders",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:47:52"
+            },
+            {
+                "LogID": "102",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получатель ID: 6; SMS не отправлено: Для работы с нашим сервисом, необходимо создать буквенного отправителя, соответствующего вашему сайту, названию юр. лица или товарному знаку - https:\/\/sms.ru\/?panel=senders",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:47:49"
+            },
+            {
+                "LogID": "101",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получатель ID: 6; SMS не отправлено: Для работы с нашим сервисом, необходимо создать буквенного отправителя, соответствующего вашему сайту, названию юр. лица или товарному знаку - https:\/\/sms.ru\/?panel=senders",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:47:45"
+            },
+            {
+                "LogID": "100",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получатель ID: 6; SMS не отправлено: Для работы с нашим сервисом, необходимо создать буквенного отправителя, соответствующего вашему сайту, названию юр. лица или товарному знаку - https:\/\/sms.ru\/?panel=senders",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:47:43"
+            },
+            {
+                "LogID": "99",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 4",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:47:39"
+            },
+            {
+                "LogID": "98",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 4",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:37:56"
+            },
+            {
+                "LogID": "97",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 10",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:36:58"
+            },
+            {
+                "LogID": "96",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 11",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:36:57"
+            },
+            {
+                "LogID": "95",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: ку; получатель ID: 6; SMS отправлено",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 13:36:55"
+            },
+            {
+                "LogID": "94",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 0, пропущено (без номера телефона): 4",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 10:12:52"
+            },
+            {
+                "LogID": "93",
+                "Category": "users",
+                "Action": "sync",
+                "Details": "Синхронизация завершена! Добавлено: 0, обновлено: 1, пропущено (без номера телефона): 4",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 10:12:49"
+            },
+            {
+                "LogID": "92",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Ку-ку; получатель ID: 6",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 10:12:45"
+            },
+            {
+                "LogID": "91",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=12, имя: Илья1, роль: admin, телефон: +79505850016",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 10:12:32"
+            },
+            {
+                "LogID": "90",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=11, имя: Данил, роль: user",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 10:12:18"
+            },
+            {
+                "LogID": "89",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получатель ID: 5",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 10:11:32"
+            },
+            {
+                "LogID": "88",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Помоги; получатель ID: 4; SMS отправлено",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-11 10:00:44"
+            },
+            {
+                "LogID": "87",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 7",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-06 22:53:25"
+            },
+            {
+                "LogID": "86",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 7",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-12-06 22:53:24"
+            },
+            {
+                "LogID": "85",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Нужно в бухгалтерию отнести бумаги.; получатель ID: 4",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-11-26 15:52:53"
+            },
+            {
+                "LogID": "84",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 6",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-11-26 15:49:09"
+            },
+            {
+                "LogID": "83",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 6",
+                "PerformedBy": "Илья1",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-11-26 15:49:08"
+            },
+            {
+                "LogID": "82",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Rere; получатель ID: 5; SMS не отправлено: Ошибка отправки SMS: HTTP Error: 403",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:26:25"
+            },
+            {
+                "LogID": "81",
+                "Category": "sms",
+                "Action": "error",
+                "Details": "Исключение при отправке SMS: HTTP Error: 403",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:26:24"
+            },
+            {
+                "LogID": "80",
+                "Category": "sms",
+                "Action": "send_attempt",
+                "Details": "Попытка отправки SMS на номер: +79505850016, сообщение: Rere",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:26:23"
+            },
+            {
+                "LogID": "79",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=11, имя: Данил, роль: user, телефон: +79505850016",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:26:09"
+            },
+            {
+                "LogID": "78",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 5",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:15:42"
+            },
+            {
+                "LogID": "77",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Привет; получатель ID: 5; SMS отправлено",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:15:29"
+            },
+            {
+                "LogID": "76",
+                "Category": "sms",
+                "Action": "send",
+                "Details": "SMS отправлено на номер: +79505850016, сообщение: Привет",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:15:28"
+            },
+            {
+                "LogID": "75",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=11, имя: Данил, роль: user, телефон: 79505850016",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:15:08"
+            },
+            {
+                "LogID": "74",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 4",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:14:44"
+            },
+            {
+                "LogID": "73",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Куку; получатель ID: 5; SMS отправлено",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:14:26"
+            },
+            {
+                "LogID": "72",
+                "Category": "sms",
+                "Action": "send",
+                "Details": "SMS отправлено на номер: +79505850016, сообщение: Куку",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:14:24"
+            },
+            {
+                "LogID": "71",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=11, имя: Данил, роль: user, телефон: +79505850016",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:14:02"
+            },
+            {
+                "LogID": "70",
+                "Category": "users",
+                "Action": "update",
+                "Details": "Обновлен пользователь ID=11, имя: Данил, роль: user, телефон: +79505850016",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 10:13:59"
+            },
+            {
+                "LogID": "69",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 09:33:35"
+            },
+            {
+                "LogID": "68",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-20 09:33:29"
+            },
+            {
+                "LogID": "67",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 2",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 20:20:07"
+            },
+            {
+                "LogID": "66",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 2",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 20:20:06"
+            },
+            {
+                "LogID": "65",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 0 пользователей",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:57:57"
+            },
+            {
+                "LogID": "64",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:24:55"
+            },
+            {
+                "LogID": "63",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:24:53"
+            },
+            {
+                "LogID": "62",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:24:50"
+            },
+            {
+                "LogID": "61",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:24:49"
+            },
+            {
+                "LogID": "60",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:38"
+            },
+            {
+                "LogID": "59",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:37"
+            },
+            {
+                "LogID": "58",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:37"
+            },
+            {
+                "LogID": "57",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:35"
+            },
+            {
+                "LogID": "56",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:35"
+            },
+            {
+                "LogID": "55",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:34"
+            },
+            {
+                "LogID": "54",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:34"
+            },
+            {
+                "LogID": "53",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:33"
+            },
+            {
+                "LogID": "52",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:32"
+            },
+            {
+                "LogID": "51",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:19:31"
+            },
+            {
+                "LogID": "50",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 3",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:12:50"
+            },
+            {
+                "LogID": "49",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: ненен; получатель ID: 3",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:10:47"
+            },
+            {
+                "LogID": "48",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 2",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:10:33"
+            },
+            {
+                "LogID": "47",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 2",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:10:32"
+            },
+            {
+                "LogID": "46",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 2",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:10:29"
+            },
+            {
+                "LogID": "45",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 2",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:10:28"
+            },
+            {
+                "LogID": "44",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 2",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:10:22"
+            },
+            {
+                "LogID": "43",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Ghbdtncnde.; получатель ID: 5",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:07:29"
+            },
+            {
+                "LogID": "42",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:07:14"
+            },
+            {
+                "LogID": "41",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:07:13"
+            },
+            {
+                "LogID": "40",
+                "Category": "sms",
+                "Action": "batch_send",
+                "Details": "Отправка завершена. Сообщение ID=13; всего: 1; ок: 1; ошибок: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:02:13"
+            },
+            {
+                "LogID": "39",
+                "Category": "sms",
+                "Action": "send_ok",
+                "Details": "Сообщение ID=13 получателю ID=5",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:02:13"
+            },
+            {
+                "LogID": "38",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:01:36"
+            },
+            {
+                "LogID": "37",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 19:01:35"
+            },
+            {
+                "LogID": "36",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:53:20"
+            },
+            {
+                "LogID": "35",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:53:17"
+            },
+            {
+                "LogID": "34",
+                "Category": "sms",
+                "Action": "batch_send",
+                "Details": "Отправка завершена. Сообщение ID=12; всего: 1; ок: 1; ошибок: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:49:32"
+            },
+            {
+                "LogID": "33",
+                "Category": "sms",
+                "Action": "send_ok",
+                "Details": "Сообщение ID=12 получателю ID=5",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:49:32"
+            },
+            {
+                "LogID": "32",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 0 пользователей",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:49:04"
+            },
+            {
+                "LogID": "31",
+                "Category": "sms",
+                "Action": "batch_send",
+                "Details": "Отправка завершена. Сообщение ID=11; всего: 1; ок: 1; ошибок: 0",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:45:29"
+            },
+            {
+                "LogID": "30",
+                "Category": "sms",
+                "Action": "send_ok",
+                "Details": "Сообщение ID=11 получателю ID=5",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:45:29"
+            },
+            {
+                "LogID": "29",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:44:55"
+            },
+            {
+                "LogID": "28",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:44:47"
+            },
+            {
+                "LogID": "27",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:42:00"
+            },
+            {
+                "LogID": "26",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:41:59"
+            },
+            {
+                "LogID": "25",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:41:13"
+            },
+            {
+                "LogID": "24",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:41:12"
+            },
+            {
+                "LogID": "23",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:41:07"
+            },
+            {
+                "LogID": "22",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:41:06"
+            },
+            {
+                "LogID": "21",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:41:03"
+            },
+            {
+                "LogID": "20",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:06:37"
+            },
+            {
+                "LogID": "19",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: unread для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:06:36"
+            },
+            {
+                "LogID": "18",
+                "Category": "user",
+                "Action": "read_status_update",
+                "Details": "Статус изменен на: read для сообщения ID: 1",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:06:35"
+            },
+            {
+                "LogID": "17",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Спасибо; получатель ID: 3",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 18:06:28"
+            },
+            {
+                "LogID": "16",
+                "Category": "user",
+                "Action": "sms_error",
+                "Details": "Исключение: Field 'UserMessageID' doesn't have a default value",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 17:42:39"
+            },
+            {
+                "LogID": "15",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 0 пользователей",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 17:42:03"
+            },
+            {
+                "LogID": "14",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 0 пользователей",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 17:39:41"
+            },
+            {
+                "LogID": "13",
+                "Category": "user",
+                "Action": "sms_error",
+                "Details": "Исключение: Can't create table `sms_informing`.`user_messages` (errno: 150 \"Foreign key constraint is incorrectly formed\")",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 17:39:37"
+            },
+            {
+                "LogID": "12",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: rere; получатель ID: 5",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 17:03:25"
+            },
+            {
+                "LogID": "11",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: rere; получатель ID: 5",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 17:01:30"
+            },
+            {
+                "LogID": "10",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 0 пользователей",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 17:01:24"
+            },
+            {
+                "LogID": "9",
+                "Category": "user",
+                "Action": "sms_send",
+                "Details": "SMS: Спасибо; получатель ID: 3",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 16:58:29"
+            },
+            {
+                "LogID": "8",
+                "Category": "user",
+                "Action": "sync_users",
+                "Details": "Синхронизировано: 4 пользователей",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 16:58:19"
+            },
+            {
+                "LogID": "7",
+                "Category": "user",
+                "Action": "sms_error",
+                "Details": "Исключение: Cannot add or update a child row: a foreign key constraint fails (`sms_informing`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 16:58:17"
+            },
+            {
+                "LogID": "6",
+                "Category": "user",
+                "Action": "sms_error",
+                "Details": "Исключение: Cannot add or update a child row: a foreign key constraint fails (`sms_informing`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 16:55:40"
+            },
+            {
+                "LogID": "5",
+                "Category": "user",
+                "Action": "message_error",
+                "Details": "Исключение: Cannot add or update a child row: a foreign key constraint fails (`sms_informing`.`messagelogs`, CONSTRAINT `messagelogs_ibfk_2` FOREIGN KEY (`RecipientID`) REFERENCES `recipients` (`RecipientID`) ON DELETE CASCADE ON UPDATE CASCADE)",
+                "PerformedBy": "Данил",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 16:54:24"
+            },
+            {
+                "LogID": "4",
+                "Category": "users",
+                "Action": "add",
+                "Details": "Добавлен пользователь: Данил, роль: user",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 16:21:47"
+            },
+            {
+                "LogID": "3",
+                "Category": "users",
+                "Action": "add_error",
+                "Details": "Ошибка добавления пользователя: Данил",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-19 16:21:30"
+            },
+            {
+                "LogID": "2",
+                "Category": "backup",
+                "Action": "create",
+                "Details": "Создан бекап backup_2025-10-01_10-11-58.json",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-01 15:12:36"
+            },
+            {
+                "LogID": "1",
+                "Category": "messages",
+                "Action": "send",
+                "Details": "Отправлено SMS: Дима скинь работу; получателей: 1",
+                "PerformedBy": "Илья",
+                "IPAddress": "::1",
+                "CreatedAt": "2025-10-01 15:07:30"
+            }
+        ],
+        "sms_templates": [
+            {
+                "TemplateID": "5",
+                "CompanyID": "2",
+                "UserID": "13",
+                "TemplateName": "Приветствие",
+                "TemplateText": "Здравствуйте.",
+                "CreatedAt": "2026-02-24 09:33:19",
+                "UpdatedAt": "2026-02-24 09:33:19"
+            },
+            {
+                "TemplateID": "4",
+                "CompanyID": "2",
+                "UserID": null,
+                "TemplateName": "Для производства",
+                "TemplateText": "состав угля состалвяет -25% угля",
+                "CreatedAt": "2025-12-18 10:38:11",
+                "UpdatedAt": "2025-12-18 10:38:11"
+            },
+            {
+                "TemplateID": "3",
+                "CompanyID": "1",
+                "UserID": null,
+                "TemplateName": "Плановый показатель качества",
+                "TemplateText": "ad-37%",
+                "CreatedAt": "2025-12-17 19:19:08",
+                "UpdatedAt": "2025-12-17 19:19:08"
+            },
+            {
+                "TemplateID": "2",
+                "CompanyID": "1",
+                "UserID": null,
+                "TemplateName": "Приветствие",
+                "TemplateText": "Добрый день! Шахта им. С.М. Кирова. По шахте",
+                "CreatedAt": "2025-12-17 19:12:09",
+                "UpdatedAt": "2025-12-17 19:12:09"
+            },
+            {
+                "TemplateID": "1",
+                "CompanyID": "1",
+                "UserID": null,
+                "TemplateName": "Лава 25-65",
+                "TemplateText": "Лава 25-65",
+                "CreatedAt": "2025-12-17 19:11:34",
+                "UpdatedAt": "2025-12-17 19:11:34"
+            }
+        ],
+        "user_feedback": [
+            {
+                "FeedbackID": "1",
+                "Username": "user",
+                "Status": "Отказано",
+                "Message": "Потом сделаю",
+                "CreatedAt": "2025-10-01 14:58:14"
+            }
+        ],
+        "sms_settings": [
+            {
+                "setting_key": "SMSCRU_LOGIN",
+                "setting_value": ""
+            },
+            {
+                "setting_key": "SMSCRU_PASSWORD",
+                "setting_value": ""
+            },
+            {
+                "setting_key": "SMSRU_API_ID",
+                "setting_value": "91E32E3C-A381-6FCE-B8B6-5752285D0AB5"
+            },
+            {
+                "setting_key": "SMS_PROVIDER",
+                "setting_value": "emulation"
+            }
+        ]
+    }
+}

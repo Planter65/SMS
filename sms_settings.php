@@ -2,8 +2,9 @@
 require_once 'auth.php';
 require_once 'sms_providers.php';
 
-// Доступ только для админа
-requireRole('admin');
+// Настройки SMS отключены — доступ закрыт
+http_response_code(404);
+exit;
 
 $success = '';
 $error = '';
